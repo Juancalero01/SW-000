@@ -1,0 +1,50 @@
+# Dependencies
+node_modules/
+*/node_modules/
+
+# Agent configuration
+.agents/
+
+# Production builds
+dist/
+*/dist/
+build/
+*/build/
+out-tsc/
+*/out-tsc/
+.angular/cache/
+*/.angular/cache/
+
+# Environment files
+.env
+.env.*
+!.env.example
+*.env.local
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# OS / Editor
+.DS_Store
+Thumbs.db
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+
+# Coverage & Tests
+coverage/
+*/coverage/
+.nyc_output/
