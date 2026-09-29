@@ -1,0 +1,46 @@
+import { ApiPropertyOptional } from '@nestjs/swagger';
+import { Transform, Type } from 'class-transformer';
+import { IsBoolean, IsEnum, IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
+import { UserApprovalStatus } from '../enums/approval-status.enum.js';
+
+export class QueryUsersDto {
+  @ApiPropertyOptional({ description: 'Número de página', default: 1 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  page: number = 1;
+
+  @ApiPropertyOptional({ description: 'Cantidad de elementos por página', default: 10 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(100)
+  limit: number = 10;
+
+  @ApiPropertyOptional({ description: 'Término de búsqueda por nombre o correo' })
+  @IsOptional()
+  @IsString()
+  search?: string;
+
+  @ApiPropertyOptional({ enum: UserApprovalStatus, description: 'Filtrar por estado de aprobación' })
+  @IsOptional()
+  @IsEnum(UserApprovalStatus)
+  approvalStatus?: UserApprovalStatus;
+
+  @ApiPropertyOptional({ description: 'Filtrar por nombre de rol' })
+  @IsOptional()
+  @IsString()
+  roleName?: string;
+
+  @ApiPropertyOptional({ description: 'Filtrar por estado activo/inactivo' })
+  @IsOptional()
+  @Transform(({ value }) => {
+    if (value === 'true' || value === true) return true;
+    if (value === 'false' || value === false) return false;
+    return undefined;
+  })
+  @IsBoolean()
+  isActive?: boolean;
+}
