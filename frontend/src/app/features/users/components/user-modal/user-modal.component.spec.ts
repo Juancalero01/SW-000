@@ -165,67 +165,7 @@ describe('UserModalComponent', () => {
     expect(closed).toBe(true);
   });
 
-  it('should trigger approval confirmation and emit approveUser when confirmed', () => {
-    const mockUser = {
-      id: 20,
-      email: 'pending@example.com',
-      fullName: 'Pending User',
-      isActive: false,
-      approvalStatus: 'PENDING' as const,
-      roles: [{ id: 3, name: 'USER' }],
-    };
-
-    fixture.componentRef.setInput('userToEdit', mockUser);
-    component.ngOnChanges({ userToEdit: new SimpleChange(null, mockUser, false) });
-    fixture.detectChanges();
-
-    let approvedId: number | null = null;
-    component.approveUser.subscribe((id) => (approvedId = id));
-
-    component.onOpenApproveConfirm();
-    expect(component.showApproveConfirm()).toBe(true);
-
-    component.onConfirmApprove();
-    expect(component.showApproveConfirm()).toBe(false);
-    expect(approvedId).toBe(20);
-  });
-
-  it('should open rejection modal, validate reason, and emit rejectUser when confirmed', () => {
-    const mockUser = {
-      id: 21,
-      email: 'candidate@example.com',
-      fullName: 'Candidate User',
-      isActive: false,
-      approvalStatus: 'PENDING' as const,
-      roles: [{ id: 3, name: 'USER' }],
-    };
-
-    fixture.componentRef.setInput('userToEdit', mockUser);
-    component.ngOnChanges({ userToEdit: new SimpleChange(null, mockUser, false) });
-    fixture.detectChanges();
-
-    let rejectedPayload: { id: number; reason: string } | null = null;
-    component.rejectUser.subscribe((payload) => (rejectedPayload = payload));
-
-    component.onOpenRejectModal();
-    expect(component.showRejectModal()).toBe(true);
-
-    // Empty reason should show error and not emit
-    component.onConfirmReject();
-    expect(component.rejectReasonError()).toBe('Debes indicar el motivo del rechazo.');
-    expect(rejectedPayload).toBeNull();
-
-    // Valid reason should emit
-    component.rejectReason.set('No cumple con los requisitos de la organización.');
-    component.onConfirmReject();
-    expect(component.showRejectModal()).toBe(false);
-    expect(rejectedPayload).toEqual({
-      id: 21,
-      reason: 'No cumple con los requisitos de la organización.',
-    });
-  });
-
-  it('should govern activation toggle: Admin can only toggle if approved, Superadmin has full access', () => {
+  it('should govern activation toggle: Admin or Superadmin can toggle active status', () => {
     // 1. Current user is ADMIN
     mockCurrentUser.set({
       id: 1,
@@ -235,41 +175,30 @@ describe('UserModalComponent', () => {
       roles: [{ id: 2, name: 'ADMIN' }],
     });
 
-    const pendingUser = {
-      id: 30,
-      email: 'p@test.com',
-      fullName: 'P',
-      isActive: false,
-      approvalStatus: 'PENDING' as const,
-      roles: [{ id: 3, name: 'USER' }],
-    };
-    fixture.componentRef.setInput('userToEdit', pendingUser);
-    component.ngOnChanges({ userToEdit: new SimpleChange(null, pendingUser, false) });
-    fixture.detectChanges();
+    expect(component.canToggleActive()).toBe(true);
 
-    // Admin cannot toggle pending user
+    // 2. Current user is SUPERADMIN
+    mockCurrentUser.set({
+      id: 99,
+      email: 'super@company.com',
+      fullName: 'Superadmin',
+      isActive: true,
+      roles: [{ id: 1, name: 'SUPERADMIN' }],
+    });
+    expect(component.canToggleActive()).toBe(true);
+
+    // 3. Current user is standard USER
+    mockCurrentUser.set({
+      id: 3,
+      email: 'user@company.com',
+      fullName: 'User',
+      isActive: true,
+      roles: [{ id: 3, name: 'USER' }],
+    });
     expect(component.canToggleActive()).toBe(false);
-
-    // Admin can toggle approved user
-    component.userForm.patchValue({ approvalStatus: 'APPROVED' });
-    expect(component.canToggleActive()).toBe(true);
-
-    // 2. Current user is SUPERADMIN -> Full access always
-    mockCurrentUser.set({
-      id: 99,
-      email: 'super@company.com',
-      fullName: 'Superadmin',
-      isActive: true,
-      roles: [{ id: 1, name: 'SUPERADMIN' }],
-    });
-    component.userForm.patchValue({ approvalStatus: 'PENDING' });
-    expect(component.canToggleActive()).toBe(true);
-
-    component.userForm.patchValue({ approvalStatus: 'REJECTED' });
-    expect(component.canToggleActive()).toBe(true);
   });
 
-  it('should govern user deletion: Admin can ONLY delete rejected users, Superadmin can delete any', () => {
+  it('should govern user deletion: Admin and Superadmin can delete, but cannot delete self or superadmin', () => {
     // 1. Current user is ADMIN
     mockCurrentUser.set({
       id: 1,
@@ -279,19 +208,39 @@ describe('UserModalComponent', () => {
       roles: [{ id: 2, name: 'ADMIN' }],
     });
 
-    // Approved user -> Admin CANNOT delete
-    component.userForm.patchValue({ approvalStatus: 'APPROVED' });
-    expect(component.canDeleteUserAccount()).toBe(false);
-
-    // Pending user -> Admin CANNOT delete
-    component.userForm.patchValue({ approvalStatus: 'PENDING' });
-    expect(component.canDeleteUserAccount()).toBe(false);
-
-    // Rejected user -> Admin CAN delete (enabled by rejection)
-    component.userForm.patchValue({ approvalStatus: 'REJECTED' });
+    const targetUser = {
+      id: 50,
+      email: 'regular@company.com',
+      fullName: 'Regular',
+      isActive: true,
+      roles: [{ id: 3, name: 'USER' }],
+    };
+    fixture.componentRef.setInput('userToEdit', targetUser);
     expect(component.canDeleteUserAccount()).toBe(true);
 
-    // 2. Current user is SUPERADMIN -> Full access
+    // Admin cannot delete itself
+    const selfUser = {
+      id: 1,
+      email: 'admin@company.com',
+      fullName: 'Admin',
+      isActive: true,
+      roles: [{ id: 2, name: 'ADMIN' }],
+    };
+    fixture.componentRef.setInput('userToEdit', selfUser);
+    expect(component.canDeleteUserAccount()).toBe(false);
+
+    // Admin cannot delete a Superadmin
+    const superTarget = {
+      id: 99,
+      email: 'super@company.com',
+      fullName: 'Superadmin',
+      isActive: true,
+      roles: [{ id: 1, name: 'SUPERADMIN' }],
+    };
+    fixture.componentRef.setInput('userToEdit', superTarget);
+    expect(component.canDeleteUserAccount()).toBe(false);
+
+    // 2. Current user is SUPERADMIN -> can delete regular and admin
     mockCurrentUser.set({
       id: 99,
       email: 'super@company.com',
@@ -299,14 +248,7 @@ describe('UserModalComponent', () => {
       isActive: true,
       roles: [{ id: 1, name: 'SUPERADMIN' }],
     });
-
-    component.userForm.patchValue({ approvalStatus: 'APPROVED' });
-    expect(component.canDeleteUserAccount()).toBe(true);
-
-    component.userForm.patchValue({ approvalStatus: 'PENDING' });
-    expect(component.canDeleteUserAccount()).toBe(true);
-
-    component.userForm.patchValue({ approvalStatus: 'REJECTED' });
+    fixture.componentRef.setInput('userToEdit', targetUser);
     expect(component.canDeleteUserAccount()).toBe(true);
   });
 
