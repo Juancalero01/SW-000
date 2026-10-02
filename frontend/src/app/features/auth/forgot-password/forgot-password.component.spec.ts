@@ -3,6 +3,7 @@ import { ForgotPasswordComponent } from './forgot-password.component';
 import { AuthService } from '../../../core/services/auth.service';
 import { Router, provideRouter } from '@angular/router';
 import { of, throwError } from 'rxjs';
+import { describe, expect, it, vi, beforeEach } from 'vitest';
 
 describe('ForgotPasswordComponent', () => {
   let fixture: ComponentFixture<ForgotPasswordComponent>;

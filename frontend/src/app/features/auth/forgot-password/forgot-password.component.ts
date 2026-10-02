@@ -1,10 +1,10 @@
 import { Component, ViewChild, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
-import { Router, RouterLink } from '@angular/router';
+import { RouterLink } from '@angular/router';
 import { AuthService } from '../../../core/services/auth.service';
 import { InputText } from 'primeng/inputtext';
-import { Button } from 'primeng/button';
+import { Button, ButtonDirective } from 'primeng/button';
 import { Message } from 'primeng/message';
 import { UiCaptchaComponent } from '../../../shared/components/ui-captcha/ui-captcha.component';
 
@@ -17,6 +17,7 @@ import { UiCaptchaComponent } from '../../../shared/components/ui-captcha/ui-cap
     RouterLink,
     InputText,
     Button,
+    ButtonDirective,
     Message,
     UiCaptchaComponent,
   ],
@@ -62,7 +63,7 @@ import { UiCaptchaComponent } from '../../../shared/components/ui-captcha/ui-cap
               class="w-full"
             />
             @if (getEmailError()) {
-              <p-message severity="error" variant="simple" size="small" >
+              <p-message severity="error" variant="simple" size="small">
                 {{ getEmailError() }}
               </p-message>
             }
@@ -109,7 +110,6 @@ export class ForgotPasswordComponent {
 
   private readonly fb = inject(FormBuilder);
   readonly authService = inject(AuthService);
-  private readonly router = inject(Router);
 
   readonly isLoading = signal<boolean>(false);
   readonly isSubmitted = signal<boolean>(false);
@@ -136,7 +136,6 @@ export class ForgotPasswordComponent {
     }
     return null;
   }
-
 
   onSubmit(): void {
     if (this.isLoading() || this.forgotForm.invalid || !this.recaptchaToken()) {

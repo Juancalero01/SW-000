@@ -5,7 +5,7 @@ import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { AuthService } from '../../../core/services/auth.service';
 import { InputText } from 'primeng/inputtext';
 import { Password } from 'primeng/password';
-import { Button, } from 'primeng/button';
+import { Button, ButtonDirective } from 'primeng/button';
 import { Message } from 'primeng/message';
 
 @Component({
@@ -18,6 +18,7 @@ import { Message } from 'primeng/message';
     InputText,
     Password,
     Button,
+    ButtonDirective,
     Message,
   ],
   template: `
@@ -44,16 +45,16 @@ import { Message } from 'primeng/message';
             Correo Electrónico <span class="text-rose-500">*</span>
           </label>
           <input
-              pInputText
-              id="email"
-              type="email"
-              formControlName="email"
-              placeholder="usuario@empresa.com"
-              pSize="large"
-              [fluid]="true"
-              [invalid]="!!getEmailError()"
-              class="w-full"
-            />
+            pInputText
+            id="email"
+            type="email"
+            formControlName="email"
+            placeholder="usuario@empresa.com"
+            pSize="large"
+            [fluid]="true"
+            [invalid]="!!getEmailError()"
+            class="w-full"
+          />
           @if (getEmailError()) {
             <p-message severity="error" variant="simple" size="small">
               {{ getEmailError() }}
@@ -111,17 +112,12 @@ export class LoginComponent {
   private readonly route = inject(ActivatedRoute);
 
   readonly isLoading = signal<boolean>(false);
-  readonly showPassword = signal<boolean>(false);
   readonly errorMessage = signal<string | null>(null);
 
   readonly loginForm = this.fb.nonNullable.group({
     email: ['', [Validators.required, Validators.email]],
     password: ['', [Validators.required]],
   });
-
-  togglePasswordVisibility(): void {
-    this.showPassword.update((show) => !show);
-  }
 
   getEmailError(): string | null {
     const control = this.loginForm.controls.email;

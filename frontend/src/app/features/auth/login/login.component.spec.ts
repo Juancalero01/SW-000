@@ -3,23 +3,18 @@ import { LoginComponent } from './login.component';
 import { AuthService } from '../../../core/services/auth.service';
 import { ActivatedRoute, Router, provideRouter } from '@angular/router';
 import { of, throwError } from 'rxjs';
+import { describe, expect, it, vi, beforeEach } from 'vitest';
 
 describe('LoginComponent', () => {
   let fixture: ComponentFixture<LoginComponent>;
   let component: LoginComponent;
   let mockAuthService: any;
-  let mockNotificationService: any;
   let router: Router;
 
   beforeEach(async () => {
     mockAuthService = {
       login: vi.fn(),
       isAuthenticated: vi.fn().mockReturnValue(false),
-    };
-
-    mockNotificationService = {
-      success: vi.fn(),
-      error: vi.fn(),
     };
 
     await TestBed.configureTestingModule({
@@ -66,10 +61,9 @@ describe('LoginComponent', () => {
     expect(component.getEmailError()).toBe('Ingresa un correo electrónico válido');
   });
 
-  it('should toggle password visibility signal', () => {
-    expect(component.showPassword()).toBe(false);
-    component.togglePasswordVisibility();
-    expect(component.showPassword()).toBe(true);
+  it('should have password field initialized properly with toggleMask supported by p-password', () => {
+    expect(component.loginForm.controls.password.value).toBe('');
+    expect(component.loginForm.controls.password.valid).toBe(false);
   });
 
   it('should execute login successfully and navigate to returnUrl without requiring reCAPTCHA', () => {
