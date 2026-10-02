@@ -8,6 +8,8 @@ import { provideRouter } from '@angular/router';
 import { providePrimeNG } from 'primeng/config';
 import { definePreset } from '@primeuix/themes';
 import Aura from '@primeuix/themes/aura';
+import { provideTranslateService, provideTranslateLoader } from '@ngx-translate/core';
+import { provideTranslateHttpLoader, TranslateHttpLoader } from '@ngx-translate/http-loader';
 
 import { routes } from './app.routes';
 import { authInterceptor } from './core/interceptors/auth.interceptor';
@@ -106,6 +108,15 @@ export const appConfig: ApplicationConfig = {
         },
       },
       ripple: true,
+    }),
+    ...provideTranslateService({
+      fallbackLang: 'es',
+      lang: 'es',
+      loader: provideTranslateLoader(TranslateHttpLoader),
+    }),
+    ...provideTranslateHttpLoader({
+      prefix: '/i18n/',
+      suffix: '.json',
     }),
   ],
 };
