@@ -2,6 +2,7 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { MainLayoutComponent } from './main-layout.component';
 import { provideRouter } from '@angular/router';
 import { AuthService } from '../../services/auth.service';
+import { MessageService } from 'primeng/api';
 import { signal } from '@angular/core';
 
 describe('MainLayoutComponent', () => {
@@ -24,6 +25,7 @@ describe('MainLayoutComponent', () => {
       imports: [MainLayoutComponent],
       providers: [
         provideRouter([]),
+        MessageService,
         { provide: AuthService, useValue: mockAuthService },
       ],
     }).compileComponents();
@@ -41,7 +43,7 @@ describe('MainLayoutComponent', () => {
     const compiled = fixture.nativeElement as HTMLElement;
     expect(compiled.querySelector('app-sidebar')).toBeTruthy();
     expect(compiled.querySelector('app-header')).toBeNull();
-    expect(compiled.querySelector('app-toast-container')).toBeTruthy();
+    expect(compiled.querySelector('p-toast')).toBeTruthy();
     expect(compiled.querySelector('router-outlet')).toBeTruthy();
   });
 

@@ -3,8 +3,8 @@ import { CommonModule } from '@angular/common';
 import { RouterOutlet } from '@angular/router';
 import { ButtonModule } from 'primeng/button';
 import { AvatarModule } from 'primeng/avatar';
+import { ToastModule } from 'primeng/toast';
 import { SidebarComponent } from './components/sidebar/sidebar.component';
-import { ToastContainerComponent } from '../../../shared/components/toast-container/toast-container.component';
 
 @Component({
   selector: 'app-main-layout',
@@ -14,8 +14,8 @@ import { ToastContainerComponent } from '../../../shared/components/toast-contai
     RouterOutlet,
     ButtonModule,
     AvatarModule,
+    ToastModule,
     SidebarComponent,
-    ToastContainerComponent,
   ],
   template: `
     <div class="min-h-screen bg-zinc-50 text-zinc-900 flex flex-col lg:flex-row font-sans selection:bg-zinc-900 selection:text-white">
@@ -55,8 +55,8 @@ import { ToastContainerComponent } from '../../../shared/components/toast-contai
         </main>
       </div>
 
-      <!-- Global Toast Container -->
-      <app-toast-container />
+      <!-- PrimeNG Global Toast Container -->
+      <p-toast position="top-right" />
     </div>
   `,
 })

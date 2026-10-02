@@ -1,42 +1,69 @@
-import { Injectable, signal } from '@angular/core';
-import { ToastMessage, ToastType } from '../models/notification.model';
+import { Injectable, inject } from '@angular/core';
+import { MessageService } from 'primeng/api';
 
 @Injectable({
   providedIn: 'root',
 })
 export class NotificationService {
-  readonly toasts = signal<ToastMessage[]>([]);
+  private readonly messageService = inject(MessageService);
 
-  show(toast: Omit<ToastMessage, 'id'>): string {
-    const id = `toast-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-    const duration = toast.duration ?? 4000;
-    const newToast: ToastMessage = { ...toast, id };
+  show(options: {
+    type?: 'success' | 'info' | 'warn' | 'error';
+    severity?: 'success' | 'info' | 'warn' | 'error';
+    title?: string;
+    summary?: string;
+    message?: string;
+    detail?: string;
+    duration?: number;
+    life?: number;
+  }): void {
+    const severity = options.severity || options.type || 'info';
+    const summary = options.summary || options.title || '';
+    const detail = options.detail || options.message || '';
+    const life = options.life || options.duration || 4000;
 
-    this.toasts.update((current) => [...current, newToast]);
-
-    if (duration > 0) {
-      setTimeout(() => {
-        this.dismiss(id);
-      }, duration);
-    }
-
-    return id;
+    this.messageService.add({
+      severity,
+      summary,
+      detail,
+      life,
+    });
   }
 
   success(title: string, message?: string): void {
-    this.show({ type: 'success', title, message });
+    this.messageService.add({
+      severity: 'success',
+      summary: title,
+      detail: message,
+      life: 4000,
+    });
   }
 
   error(title: string, message?: string): void {
-    this.show({ type: 'error', title, message, duration: 6000 });
+    this.messageService.add({
+      severity: 'error',
+      summary: title,
+      detail: message,
+      life: 6000,
+    });
   }
 
   warning(title: string, message?: string): void {
-    this.show({ type: 'warning', title, message });
+    this.messageService.add({
+      severity: 'warn',
+      summary: title,
+      detail: message,
+      life: 5000,
+    });
   }
 
   info(title: string, message?: string): void {
-    this.show({ type: 'info', title, message });
+    this.messageService.add({
+      severity: 'info',
+      summary: title,
+      detail: message,
+      life: 4000,
+    });
   }
 
   notifySaved(entityName: string = 'Registro'): void {
@@ -44,14 +71,14 @@ export class NotificationService {
   }
 
   notifyUpdated(entityName: string = 'Registro'): void {
-    this.success(`${entityName} actualizado`, 'La informacion ha sido actualizada exitosamente.');
+    this.success(`${entityName} actualizado`, 'La información ha sido actualizada exitosamente.');
   }
 
   notifyDeleted(entityName: string = 'Registro'): void {
     this.info(`${entityName} eliminado`, 'El registro ha sido eliminado del sistema.');
   }
 
-  dismiss(id: string): void {
-    this.toasts.update((current) => current.filter((t) => t.id !== id));
+  clear(): void {
+    this.messageService.clear();
   }
 }

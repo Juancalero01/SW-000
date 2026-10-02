@@ -1,43 +1,95 @@
 import { TestBed } from '@angular/core/testing';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { NotificationService } from './notification.service';
+import { MessageService } from 'primeng/api';
 
 describe('NotificationService', () => {
   let service: NotificationService;
+  let mockMessageService: any;
 
   beforeEach(() => {
+    mockMessageService = {
+      add: vi.fn(),
+      clear: vi.fn(),
+    };
+
     TestBed.configureTestingModule({
-      providers: [NotificationService],
+      providers: [
+        NotificationService,
+        { provide: MessageService, useValue: mockMessageService },
+      ],
     });
     service = TestBed.inject(NotificationService);
   });
 
-  it('should initialize with empty toasts', () => {
-    expect(service.toasts()).toEqual([]);
+  it('should be created', () => {
+    expect(service).toBeTruthy();
   });
 
-  it('should add success toast and dismiss it', () => {
+  it('should delegate success to MessageService.add', () => {
     service.success('Guardado', 'Cambios guardados');
-    expect(service.toasts()).toHaveLength(1);
-    expect(service.toasts()[0].title).toBe('Guardado');
-    expect(service.toasts()[0].type).toBe('success');
+    expect(mockMessageService.add).toHaveBeenCalledWith({
+      severity: 'success',
+      summary: 'Guardado',
+      detail: 'Cambios guardados',
+      life: 4000,
+    });
+  });
 
-    const toastId = service.toasts()[0].id;
-    service.dismiss(toastId);
-    expect(service.toasts()).toHaveLength(0);
+  it('should delegate error, warning, info to MessageService.add', () => {
+    service.error('Error', 'Ha fallado');
+    expect(mockMessageService.add).toHaveBeenCalledWith({
+      severity: 'error',
+      summary: 'Error',
+      detail: 'Ha fallado',
+      life: 6000,
+    });
+
+    service.warning('Atencion', 'Cuidado');
+    expect(mockMessageService.add).toHaveBeenCalledWith({
+      severity: 'warn',
+      summary: 'Atencion',
+      detail: 'Cuidado',
+      life: 5000,
+    });
+
+    service.info('Info', 'Detalle');
+    expect(mockMessageService.add).toHaveBeenCalledWith({
+      severity: 'info',
+      summary: 'Info',
+      detail: 'Detalle',
+      life: 4000,
+    });
   });
 
   it('should call helper methods notifySaved, notifyUpdated, notifyDeleted', () => {
     service.notifySaved('Producto');
-    expect(service.toasts()).toHaveLength(1);
-    expect(service.toasts()[0].title).toBe('Producto guardado');
+    expect(mockMessageService.add).toHaveBeenCalledWith(
+      expect.objectContaining({
+        severity: 'success',
+        summary: 'Producto guardado',
+      }),
+    );
 
     service.notifyUpdated('Cliente');
-    expect(service.toasts()).toHaveLength(2);
-    expect(service.toasts()[1].title).toBe('Cliente actualizado');
+    expect(mockMessageService.add).toHaveBeenCalledWith(
+      expect.objectContaining({
+        severity: 'success',
+        summary: 'Cliente actualizado',
+      }),
+    );
 
     service.notifyDeleted('Proveedor');
-    expect(service.toasts()).toHaveLength(3);
-    expect(service.toasts()[2].title).toBe('Proveedor eliminado');
+    expect(mockMessageService.add).toHaveBeenCalledWith(
+      expect.objectContaining({
+        severity: 'info',
+        summary: 'Proveedor eliminado',
+      }),
+    );
+  });
+
+  it('should delegate clear to MessageService.clear', () => {
+    service.clear();
+    expect(mockMessageService.clear).toHaveBeenCalled();
   });
 });
