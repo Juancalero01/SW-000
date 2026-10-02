@@ -305,57 +305,42 @@ async function runSeeds() {
     console.log('Sembrando Transiciones de Flujo de Trabajo para Módulo USERS...');
     const transitionRepo = AppDataSource.getRepository(WorkflowTransitionEntity);
 
+    // Limpieza de transiciones obsoletas del flujo anterior
+    await transitionRepo.delete({ module: 'USERS' });
+
     const userTransitions = [
       {
         module: 'USERS',
-        fromState: 'PENDING',
-        toState: 'APPROVED',
+        fromState: 'ACTIVE',
+        toState: 'INACTIVE',
         allowedRoles: ['ADMIN', 'SUPERADMIN'],
-        description: 'Aprobación de registro: activa la cuenta y envía credenciales temporales',
+        description: 'Desactivación de cuenta: suspende el acceso del usuario a la plataforma',
       },
       {
         module: 'USERS',
-        fromState: 'PENDING',
-        toState: 'REJECTED',
+        fromState: 'INACTIVE',
+        toState: 'ACTIVE',
         allowedRoles: ['ADMIN', 'SUPERADMIN'],
-        description: 'Rechazo de registro: desactiva la cuenta y envía motivo de rechazo',
+        description: 'Reactivación de cuenta: restablece el acceso del usuario a la plataforma',
       },
       {
         module: 'USERS',
-        fromState: 'REJECTED',
+        fromState: 'INACTIVE',
         toState: 'DELETED',
         allowedRoles: ['ADMIN', 'SUPERADMIN'],
-        description: 'Eliminación permitida para cuentas rechazadas',
+        description: 'Baja lógica permitida para cuentas de usuario inactivas',
       },
       {
         module: 'USERS',
-        fromState: 'APPROVED',
+        fromState: 'ACTIVE',
         toState: 'DELETED',
-        allowedRoles: ['SUPERADMIN'],
-        description: 'Eliminación exclusiva de cuentas aprobadas para Superadministrador',
-      },
-      {
-        module: 'USERS',
-        fromState: 'PENDING',
-        toState: 'DELETED',
-        allowedRoles: ['SUPERADMIN'],
-        description: 'Eliminación exclusiva de cuentas pendientes para Superadministrador',
+        allowedRoles: ['ADMIN', 'SUPERADMIN'],
+        description: 'Baja lógica directa de cuentas activas permitida para Administrador y Superadministrador',
       },
     ];
 
     for (const ut of userTransitions) {
-      const existing = await transitionRepo.findOneBy({
-        module: ut.module,
-        fromState: ut.fromState,
-        toState: ut.toState,
-      });
-      if (!existing) {
-        await transitionRepo.save(transitionRepo.create(ut));
-      } else {
-        existing.allowedRoles = ut.allowedRoles;
-        existing.description = ut.description;
-        await transitionRepo.save(existing);
-      }
+      await transitionRepo.save(transitionRepo.create(ut));
     }
     console.log('Transiciones de flujo para Módulo USERS verificadas.');
 
@@ -363,59 +348,38 @@ async function runSeeds() {
     console.log('Sembrando Reglas de Campos para Módulo USERS...');
     const fieldPermRepo = AppDataSource.getRepository(FieldStatePermissionEntity);
 
-    const usersApprovedRule = await fieldPermRepo.findOneBy({ module: 'USERS', state: 'APPROVED', role: 'ADMIN' });
-    if (!usersApprovedRule) {
-      await fieldPermRepo.save(
-        fieldPermRepo.create({
-          module: 'USERS',
-          state: 'APPROVED',
-          role: 'ADMIN',
-          editableFields: ['fullName', 'phoneNumber', 'roleName', 'isActive'],
-          readOnlyFields: ['email', 'approvalStatus'],
-          allowedValues: null,
-        }),
-      );
-    } else {
-      usersApprovedRule.editableFields = ['fullName', 'phoneNumber', 'roleName', 'isActive'];
-      usersApprovedRule.readOnlyFields = ['email', 'approvalStatus'];
-      await fieldPermRepo.save(usersApprovedRule);
-    }
+    // Limpieza de reglas de campos obsoletas del flujo anterior
+    await fieldPermRepo.delete({ module: 'USERS' });
 
-    const usersRejectedRule = await fieldPermRepo.findOneBy({ module: 'USERS', state: 'REJECTED', role: 'ADMIN' });
-    if (!usersRejectedRule) {
-      await fieldPermRepo.save(
-        fieldPermRepo.create({
-          module: 'USERS',
-          state: 'REJECTED',
-          role: 'ADMIN',
-          editableFields: ['fullName', 'phoneNumber'],
-          readOnlyFields: ['email', 'approvalStatus', 'roleName', 'isActive'],
-          allowedValues: null,
-        }),
-      );
-    } else {
-      usersRejectedRule.editableFields = ['fullName', 'phoneNumber'];
-      usersRejectedRule.readOnlyFields = ['email', 'approvalStatus', 'roleName', 'isActive'];
-      await fieldPermRepo.save(usersRejectedRule);
-    }
+    const userFieldRules = [
+      {
+        module: 'USERS',
+        state: 'ACTIVE',
+        role: 'ADMIN',
+        editableFields: ['fullName', 'phoneNumber', 'roleName', 'isActive'],
+        readOnlyFields: ['email'],
+        allowedValues: null,
+      },
+      {
+        module: 'USERS',
+        state: 'INACTIVE',
+        role: 'ADMIN',
+        editableFields: ['fullName', 'phoneNumber', 'roleName', 'isActive'],
+        readOnlyFields: ['email'],
+        allowedValues: null,
+      },
+      {
+        module: 'USERS',
+        state: 'ACTIVE',
+        role: 'USER',
+        editableFields: ['phoneNumber'],
+        readOnlyFields: ['fullName', 'email', 'roleName', 'isActive'],
+        allowedValues: null,
+      },
+    ];
 
-    const usersPendingRule = await fieldPermRepo.findOneBy({ module: 'USERS', state: 'PENDING', role: 'ADMIN' });
-    if (!usersPendingRule) {
-      await fieldPermRepo.save(
-        fieldPermRepo.create({
-          module: 'USERS',
-          state: 'PENDING',
-          role: 'ADMIN',
-          editableFields: ['fullName', 'phoneNumber', 'roleName', 'approvalStatus'],
-          readOnlyFields: ['email', 'isActive'],
-          allowedValues: { approvalStatus: ['APPROVED', 'REJECTED'] },
-        }),
-      );
-    } else {
-      usersPendingRule.editableFields = ['fullName', 'phoneNumber', 'roleName', 'approvalStatus'];
-      usersPendingRule.readOnlyFields = ['email', 'isActive'];
-      usersPendingRule.allowedValues = { approvalStatus: ['APPROVED', 'REJECTED'] };
-      await fieldPermRepo.save(usersPendingRule);
+    for (const rule of userFieldRules) {
+      await fieldPermRepo.save(fieldPermRepo.create(rule));
     }
 
     console.log('Reglas de campos del módulo USERS verificadas.');

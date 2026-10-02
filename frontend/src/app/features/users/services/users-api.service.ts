@@ -26,7 +26,6 @@ export interface UpdateUserPayload {
   phoneNumber?: string;
   roles?: string[];
   isActive?: boolean;
-  approvalStatus?: 'PENDING' | 'APPROVED' | 'REJECTED';
   isEmailVerified?: boolean;
 }
 
@@ -42,7 +41,6 @@ export class UsersApiService {
     page?: number;
     limit?: number;
     search?: string;
-    approvalStatus?: 'PENDING' | 'APPROVED' | 'REJECTED';
     roleName?: string;
     isActive?: boolean;
   }): Observable<PaginatedUsersResponse> {
@@ -50,7 +48,6 @@ export class UsersApiService {
     if (params?.page) httpParams = httpParams.set('page', params.page.toString());
     if (params?.limit) httpParams = httpParams.set('limit', params.limit.toString());
     if (params?.search) httpParams = httpParams.set('search', params.search);
-    if (params?.approvalStatus) httpParams = httpParams.set('approvalStatus', params.approvalStatus);
     if (params?.roleName) httpParams = httpParams.set('roleName', params.roleName);
     if (params?.isActive !== undefined) httpParams = httpParams.set('isActive', params.isActive.toString());
 
@@ -67,14 +64,6 @@ export class UsersApiService {
 
   updateUser(id: number, payload: UpdateUserPayload): Observable<User> {
     return this.http.patch<User>(`${this.baseUrl}/${id}`, payload);
-  }
-
-  approveUser(id: number): Observable<User> {
-    return this.http.patch<User>(`${this.baseUrl}/${id}/approve`, {});
-  }
-
-  rejectUser(id: number, reason?: string): Observable<User> {
-    return this.http.patch<User>(`${this.baseUrl}/${id}/reject`, { reason });
   }
 
   deleteUser(id: number): Observable<{ message: string }> {

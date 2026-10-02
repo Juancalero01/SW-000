@@ -91,6 +91,8 @@ describe('UsersService', () => {
 
   const mockWorkflowEngineService = {
     canTransition: vi.fn().mockResolvedValue(true),
+    validateTransition: vi.fn().mockResolvedValue({ allowed: true }),
+    getEditableFieldsForUser: vi.fn().mockResolvedValue(['fullName', 'phoneNumber', 'roleName', 'isActive']),
   };
 
   beforeEach(async () => {
@@ -352,27 +354,16 @@ describe('UsersService', () => {
       ).rejects.toThrow(ForbiddenException);
     });
 
-    it('debe lanzar BadRequestException si un Admin intenta cambiar isActive cuando el usuario no está APROBADO', async () => {
-      const pendingUser = { ...mockUser, approvalStatus: 'PENDING' };
-      mockUserRepository.findOne.mockResolvedValue(pendingUser);
-
-      await expect(
-        service.updateUser(1, { isActive: true }, mockAdminUser),
-      ).rejects.toThrow('La activación o desactivación de la cuenta requiere que el registro del usuario esté previamente aprobado.');
-    });
-
-    it('debe permitir a un Admin cambiar isActive cuando el usuario está APROBADO', async () => {
-      const approvedUser = { ...mockUser, approvalStatus: 'APPROVED' };
-      mockUserRepository.findOne.mockResolvedValue(approvedUser);
+    it('debe permitir a un Admin cambiar isActive directamente', async () => {
+      mockUserRepository.findOne.mockResolvedValue(mockUser);
 
       const result = await service.updateUser(1, { isActive: false }, mockAdminUser);
       expect(mockUserRepository.save).toHaveBeenCalled();
       expect(result.isActive).toBe(false);
     });
 
-    it('debe permitir a un Superadmin cambiar isActive incluso si el usuario no está APROBADO', async () => {
-      const pendingUser = { ...mockUser, approvalStatus: 'PENDING' };
-      mockUserRepository.findOne.mockResolvedValue(pendingUser);
+    it('debe permitir a un Superadmin cambiar isActive', async () => {
+      mockUserRepository.findOne.mockResolvedValue(mockUser);
 
       const result = await service.updateUser(1, { isActive: true }, mockSuperadminUser);
       expect(mockUserRepository.save).toHaveBeenCalled();
@@ -381,7 +372,7 @@ describe('UsersService', () => {
   });
 
   describe('softDelete', () => {
-    it('debe permitir a un Superadmin realizar softDelete en cualquier estado e invalidar cache de Redis', async () => {
+    it('debe permitir a un Superadmin realizar softDelete e invalidar cache de Redis', async () => {
       mockUserRepository.findOne.mockResolvedValue(mockUser);
 
       const result = await service.softDelete(1, mockSuperadminUser);
@@ -393,22 +384,30 @@ describe('UsersService', () => {
       expect(result.message).toContain('eliminado correctamente');
     });
 
-    it('debe lanzar ForbiddenException si un Admin intenta eliminar un usuario que no ha sido RECHAZADO', async () => {
-      const approvedUser = { ...mockUser, approvalStatus: 'APPROVED' };
-      mockUserRepository.findOne.mockResolvedValue(approvedUser);
+    it('debe permitir a un Admin eliminar un usuario y lanzar ForbiddenException si intenta eliminar un Superadmin', async () => {
+      const superadminTarget = { ...mockUser, roles: [{ id: 1, name: 'SUPERADMIN' }] };
+      mockUserRepository.findOne.mockResolvedValue(superadminTarget);
 
       await expect(
         service.softDelete(1, mockAdminUser),
-      ).rejects.toThrow('Los administradores solo pueden eliminar cuentas de usuarios que hayan sido rechazadas.');
+      ).rejects.toThrow('Los administradores no pueden eliminar cuentas de Superadministradores.');
     });
 
-    it('debe permitir a un Admin eliminar un usuario si su estado es REJECTED', async () => {
-      const rejectedUser = { ...mockUser, approvalStatus: 'REJECTED' };
-      mockUserRepository.findOne.mockResolvedValue(rejectedUser);
+    it('debe permitir a un Admin eliminar un usuario estándar', async () => {
+      const regularUser = { ...mockUser, roles: [{ id: 3, name: 'USER' }] };
+      mockUserRepository.findOne.mockResolvedValue(regularUser);
 
       const result = await service.softDelete(1, mockAdminUser);
       expect(mockUserRepository.softDelete).toHaveBeenCalledWith(1);
       expect(result.message).toContain('eliminado correctamente');
+    });
+
+    it('debe impedir que un usuario intente eliminar su propia cuenta', async () => {
+      mockUserRepository.findOne.mockResolvedValue(mockAdminUser);
+
+      await expect(
+        service.softDelete(mockAdminUser.id, mockAdminUser),
+      ).rejects.toThrow('No puedes eliminar tu propia cuenta de usuario');
     });
   });
 
@@ -425,34 +424,38 @@ describe('UsersService', () => {
     });
   });
 
-  describe('approveUser y rejectUser', () => {
-    it('debe aprobar un usuario, activar cuenta, generar clave temporal y enviar credenciales', async () => {
-      const pendingUser = { ...mockUser, approvalStatus: 'PENDING', isActive: false };
-      mockUserRepository.findOne.mockResolvedValue(pendingUser);
+  describe('Validaciones 4D de Ciclo de Vida y Permisos de Campo', () => {
+    it('debe rechazar la activación si la transición 4D no está permitida en el motor', async () => {
+      mockUserRepository.findOne.mockResolvedValue({ ...mockUser, isActive: true });
+      mockWorkflowEngineService.validateTransition.mockResolvedValueOnce({
+        allowed: false,
+        reason: 'Transición no permitida',
+      });
 
-      const result = await service.approveUser(1, mockAdminUser);
-
-      expect(mockUserRepository.save).toHaveBeenCalled();
-      expect(mockMailService.sendUserCredentials).toHaveBeenCalled();
-      expect(result.approvalStatus).toBe('APPROVED');
-      expect(result.isActive).toBe(true);
-      expect(result.mustChangePassword).toBe(true);
+      await expect(
+        service.updateUser(1, { isActive: false }, mockAdminUser),
+      ).rejects.toThrow('Transición no permitida');
     });
 
-    it('debe rechazar un usuario, desactivar cuenta y enviar correo con el motivo especificado', async () => {
-      const pendingUser = { ...mockUser, approvalStatus: 'PENDING', isActive: true };
-      mockUserRepository.findOne.mockResolvedValue(pendingUser);
+    it('debe rechazar la modificación de campos no editables según field_state_permissions', async () => {
+      mockUserRepository.findOne.mockResolvedValue({ ...mockUser, isActive: true });
+      mockWorkflowEngineService.getEditableFieldsForUser.mockResolvedValueOnce(['phoneNumber']);
 
-      const result = await service.rejectUser(1, 'Documentación incompleta', mockAdminUser);
+      await expect(
+        service.updateUser(1, { fullName: 'Nuevo Nombre' }, mockAdminUser),
+      ).rejects.toThrow('No posees permiso para modificar el nombre del usuario');
+    });
 
-      expect(mockUserRepository.save).toHaveBeenCalled();
-      expect(mockMailService.sendRegistrationRejected).toHaveBeenCalledWith(
-        pendingUser.email,
-        pendingUser.fullName,
-        'Documentación incompleta',
-      );
-      expect(result.approvalStatus).toBe('REJECTED');
-      expect(result.isActive).toBe(false);
+    it('debe validar la transición a DELETED en softDelete según el motor 4D', async () => {
+      mockUserRepository.findOne.mockResolvedValue({ ...mockUser, isActive: true });
+      mockWorkflowEngineService.validateTransition.mockResolvedValueOnce({
+        allowed: false,
+        reason: 'Solo Superadmin puede eliminar cuentas activas',
+      });
+
+      await expect(
+        service.softDelete(1, mockAdminUser),
+      ).rejects.toThrow('Solo Superadmin puede eliminar cuentas activas');
     });
   });
 

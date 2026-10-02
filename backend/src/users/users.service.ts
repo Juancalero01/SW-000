@@ -86,7 +86,7 @@ export class UsersService {
       password: hashedPassword,
       mustChangePassword: mustChangePassword ?? true,
       approvalStatus: approvalStatus || UserApprovalStatus.APPROVED,
-      isEmailVerified: false,
+      isEmailVerified: true,
       isActive: userData.isActive ?? true,
     });
 
@@ -263,111 +263,14 @@ export class UsersService {
     };
   }
 
-  async approveUser(id: number, currentUser?: UserEntity): Promise<UserEntity> {
-    const user = await this.findById(id);
-    if (user.approvalStatus === UserApprovalStatus.APPROVED) {
-      return user;
-    }
-
-    if (currentUser) {
-      const userRoleNames = (currentUser.roles || []).map((r) => r.name.toUpperCase());
-      const can = await this.workflowEngineService.canTransition(
-        'USERS',
-        user.approvalStatus,
-        UserApprovalStatus.APPROVED,
-        userRoleNames,
-      );
-      if (!can) {
-        throw new ForbiddenException(
-          `No posees permisos para aprobar usuarios en estado ${user.approvalStatus}`,
-        );
-      }
-    }
-
-    // Aprobación: Activa la cuenta, genera contraseña provisoria temporal y envía credenciales
-    user.approvalStatus = UserApprovalStatus.APPROVED;
-    user.isActive = true;
-
-    const tempPassword = crypto.randomBytes(5).toString('hex');
-    user.password = await bcrypt.hash(tempPassword, 10);
-    user.mustChangePassword = true;
-
-    const updatedUser = await this.userRepository.save(user);
-
-    // Guardar token de verificación
-    const verificationToken = crypto.randomBytes(32).toString('hex');
-    await this.redisService.set(
-      `user:email_verification:${updatedUser.email}`,
-      verificationToken,
-      86400,
-    );
-
-    this.mailService
-      .sendUserCredentials(updatedUser.email, updatedUser.fullName, tempPassword, verificationToken)
-      .catch((err) => {});
-
-    await this.caslAbilityFactory.invalidateUserPermissionsCache(updatedUser.id);
-
-    if (this.auditLogsService) {
-      await this.auditLogsService.log({
-        userId: updatedUser.id,
-        userEmail: updatedUser.email,
-        action: 'USER_APPROVED',
-        module: 'USERS',
-      });
-    }
-
-    return updatedUser;
-  }
-
-  async rejectUser(id: number, reason?: string, currentUser?: UserEntity): Promise<UserEntity> {
-    const user = await this.findById(id);
-
-    if (currentUser) {
-      const userRoleNames = (currentUser.roles || []).map((r) => r.name.toUpperCase());
-      const can = await this.workflowEngineService.canTransition(
-        'USERS',
-        user.approvalStatus,
-        UserApprovalStatus.REJECTED,
-        userRoleNames,
-      );
-      if (!can) {
-        throw new ForbiddenException(
-          `No posees permisos para rechazar usuarios en estado ${user.approvalStatus}`,
-        );
-      }
-    }
-
-    // Rechazo: Desactiva la cuenta y envía email con motivo
-    user.approvalStatus = UserApprovalStatus.REJECTED;
-    user.isActive = false;
-    const updatedUser = await this.userRepository.save(user);
-
-    this.mailService
-      .sendRegistrationRejected(updatedUser.email, updatedUser.fullName, reason)
-      .catch((err) => {});
-
-    await this.caslAbilityFactory.invalidateUserPermissionsCache(updatedUser.id);
-
-    if (this.auditLogsService) {
-      await this.auditLogsService.log({
-        userId: updatedUser.id,
-        userEmail: updatedUser.email,
-        action: 'USER_REJECTED',
-        module: 'USERS',
-        changes: { reason: reason || 'Sin motivo especificado' },
-      });
-    }
-
-    return updatedUser;
-  }
-
   async updateUser(id: number, updateUserDto: UpdateUserDto, currentUser: UserEntity): Promise<UserEntity> {
     const user = await this.findById(id);
     const { roles, password, ...updateData } = updateUserDto;
     const isSuperAdmin = currentUser.roles?.some((r) => r.name?.toUpperCase() === 'SUPERADMIN');
     const isAdmin = currentUser.roles?.some((r) => r.name?.toUpperCase() === 'ADMIN') || isSuperAdmin;
+    const userRoleNames = (currentUser.roles || []).map((r) => r.name.toUpperCase());
 
+    // 1. Verificación RBAC para roles
     if (roles && !isAdmin) {
       throw new ForbiddenException('Solo un Administrador puede modificar los roles de usuario');
     }
@@ -394,15 +297,50 @@ export class UsersService {
       }
     }
 
-    if (updateUserDto.isActive !== undefined) {
+    // 2. Verificación 4D: Transición de estado de activación (ACTIVE <-> INACTIVE)
+    if (updateUserDto.isActive !== undefined && updateUserDto.isActive !== user.isActive) {
       if (!isAdmin) {
         throw new ForbiddenException('Solo un Administrador puede cambiar el estado de activación');
       }
-      // Regla de activación: Admin solo puede activar/desactivar si la cuenta está APROBADA
-      if (!isSuperAdmin && user.approvalStatus !== UserApprovalStatus.APPROVED) {
-        throw new BadRequestException(
-          'La activación o desactivación de la cuenta requiere que el registro del usuario esté previamente aprobado.',
+
+      const fromState = user.isActive ? 'ACTIVE' : 'INACTIVE';
+      const toState = updateUserDto.isActive ? 'ACTIVE' : 'INACTIVE';
+
+      if (!isSuperAdmin) {
+        const transitionCheck = await this.workflowEngineService.validateTransition(
+          'USERS',
+          fromState,
+          toState,
+          userRoleNames,
         );
+        if (!transitionCheck.allowed) {
+          throw new ForbiddenException(transitionCheck.reason);
+        }
+      }
+    }
+
+    // 3. Verificación 4D: Permisos de campos por estado (field_state_permissions ABAC)
+    if (!isSuperAdmin) {
+      const currentState = user.isActive ? 'ACTIVE' : 'INACTIVE';
+      const editableFields = await this.workflowEngineService.getEditableFieldsForUser(
+        'USERS',
+        currentState,
+        userRoleNames,
+      );
+
+      if (editableFields !== null) {
+        if (updateData.fullName !== undefined && !editableFields.includes('fullName')) {
+          throw new ForbiddenException('No posees permiso para modificar el nombre del usuario');
+        }
+        if (updateData.phoneNumber !== undefined && !editableFields.includes('phoneNumber')) {
+          throw new ForbiddenException('No posees permiso para modificar el teléfono del usuario');
+        }
+        if (roles !== undefined && !editableFields.includes('roleName')) {
+          throw new ForbiddenException('No posees permiso para modificar los roles del usuario');
+        }
+        if (updateUserDto.isActive !== undefined && !editableFields.includes('isActive')) {
+          throw new ForbiddenException('No posees permiso para modificar el estado de activación del usuario');
+        }
       }
     }
 
@@ -443,15 +381,30 @@ export class UsersService {
     const user = await this.findById(id);
 
     if (currentUser) {
+      if (currentUser.id === id) {
+        throw new BadRequestException('No puedes eliminar tu propia cuenta de usuario');
+      }
+
       const userRoleNames = (currentUser.roles || []).map((r) => r.name.toUpperCase());
       const isSuperAdmin = userRoleNames.includes('SUPERADMIN');
-      if (!isSuperAdmin) {
-        // El administrador NO puede eliminar cuentas de usuario, EXCEPTO si están en REJECTED
-        if (user.approvalStatus !== UserApprovalStatus.REJECTED) {
-          throw new ForbiddenException(
-            'Los administradores solo pueden eliminar cuentas de usuarios que hayan sido rechazadas.',
-          );
-        }
+      const targetIsSuperAdmin = user.roles?.some((r) => r.name?.toUpperCase() === 'SUPERADMIN');
+
+      if (!isSuperAdmin && targetIsSuperAdmin) {
+        throw new ForbiddenException(
+          'Los administradores no pueden eliminar cuentas de Superadministradores.',
+        );
+      }
+
+      // Verificación 4D: Transición a DELETED según máquina de estados
+      const fromState = user.isActive ? 'ACTIVE' : 'INACTIVE';
+      const transitionCheck = await this.workflowEngineService.validateTransition(
+        'USERS',
+        fromState,
+        'DELETED',
+        userRoleNames,
+      );
+      if (!transitionCheck.allowed) {
+        throw new ForbiddenException(transitionCheck.reason);
       }
     }
 

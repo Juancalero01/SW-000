@@ -1,4 +1,4 @@
-import { Component, computed, inject, input, output } from '@angular/core';
+import { Component, OnInit, computed, inject, input, output } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterLink, RouterLinkActive } from '@angular/router';
 import { DrawerModule } from 'primeng/drawer';
@@ -9,6 +9,7 @@ import { TooltipModule } from 'primeng/tooltip';
 import { Ripple } from 'primeng/ripple';
 import { AuthService } from '../../../../services/auth.service';
 import { AbilityService } from '../../../../services/ability.service';
+import { ModulesService } from '../../../../services/modules.service';
 
 interface NavItem {
   label: string;
@@ -138,13 +139,20 @@ interface NavItem {
     </ng-template>
   `,
 })
-export class SidebarComponent {
+export class SidebarComponent implements OnInit {
   private readonly authService = inject(AuthService);
   private readonly abilityService = inject(AbilityService);
+  private readonly modulesService = inject(ModulesService, { optional: true });
 
   readonly isOpen = input<boolean>(false);
   readonly closeSidebar = output<void>();
   readonly user = this.authService.currentUser;
+
+  ngOnInit(): void {
+    if (this.user()) {
+      this.modulesService?.loadMyModules();
+    }
+  }
 
   onDrawerVisibleChange(visible: boolean): void {
     if (!visible) {
@@ -163,6 +171,17 @@ export class SidebarComponent {
 
   onLogout(): void {
     this.authService.logout();
+  }
+
+  private getIconForModule(code: string): string {
+    const iconMap: Record<string, string> = {
+      DASHBOARD: 'pi pi-th-large',
+      USERS: 'pi pi-users',
+      ROLES: 'pi pi-shield',
+      WORKFLOWS: 'pi pi-sitemap',
+      AUDIT: 'pi pi-history',
+    };
+    return iconMap[code.toUpperCase()] || 'pi pi-circle';
   }
 
   readonly allNavItems: NavItem[] = [
@@ -199,6 +218,16 @@ export class SidebarComponent {
   ];
 
   readonly filteredNavItems = computed<NavItem[]>(() => {
+    const dynamicModules = this.modulesService?.modules() || [];
+    if (dynamicModules.length > 0) {
+      return dynamicModules.map((m) => ({
+        label: m.name,
+        route: m.route,
+        subject: m.code,
+        icon: this.getIconForModule(m.code),
+      }));
+    }
     return this.allNavItems.filter((item) => this.abilityService.can('read', item.subject));
   });
 }
+

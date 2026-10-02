@@ -65,28 +65,7 @@ export class UsersController {
     return await this.usersService.findById(id);
   }
 
-  @CheckPolicies((ability) => ability.can(Action.UPDATE, 'User'))
-  @UseGuards(PoliciesGuard)
-  @Patch(':id/approve')
-  @ApiOperation({ summary: 'Aprobar solicitud de registro de usuario (Solo Administrador)' })
-  async approve(
-    @Param('id', ParseIntPipe) id: number,
-    @GetUser() currentUser: UserEntity,
-  ) {
-    return await this.usersService.approveUser(id, currentUser);
-  }
 
-  @CheckPolicies((ability) => ability.can(Action.UPDATE, 'User'))
-  @UseGuards(PoliciesGuard)
-  @Patch(':id/reject')
-  @ApiOperation({ summary: 'Rechazar solicitud de registro de usuario (Solo Administrador)' })
-  async reject(
-    @Param('id', ParseIntPipe) id: number,
-    @Body('reason') reason: string,
-    @GetUser() currentUser: UserEntity,
-  ) {
-    return await this.usersService.rejectUser(id, reason, currentUser);
-  }
 
   @CheckPolicies((ability) => ability.can(Action.UPDATE, 'User'))
   @UseGuards(PoliciesGuard)

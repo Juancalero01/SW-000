@@ -28,3 +28,14 @@ export interface User {
   createdAt?: string;
   updatedAt?: string;
 }
+
+export interface AppModule {
+  id: number;
+  code: string;
+  name: string;
+  description?: string | null;
+  route: string;
+  icon?: string | null;
+  order: number;
+  isActive: boolean;
+}

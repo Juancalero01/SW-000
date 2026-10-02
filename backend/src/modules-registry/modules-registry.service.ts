@@ -25,6 +25,14 @@ export class ModulesRegistryService {
     private readonly auditLogsService: AuditLogsService,
   ) {}
 
+  private readonly moduleSubjectMap: Record<string, string> = {
+    DASHBOARD: 'Dashboard',
+    USERS: 'User',
+    ROLES: 'Role',
+    WORKFLOWS: 'WorkflowTransition',
+    AUDIT: 'AuditLog',
+  };
+
   async getAuthorizedModulesForUser(user: UserEntity): Promise<ModuleEntity[]> {
     const ability = await this.caslAbilityFactory.createForUserAsync(user);
     const allModules = await this.moduleRepository.find({
@@ -32,12 +40,20 @@ export class ModulesRegistryService {
       order: { order: 'ASC' },
     });
 
-    return allModules.filter(
-      (mod) =>
-        ability.can(Action.MANAGE, 'all') ||
-        ability.can(Action.READ, mod.code as any) ||
-        ability.can(Action.READ, 'all'),
-    );
+    return allModules.filter((mod) => {
+      if (ability.can(Action.MANAGE, 'all') || ability.can(Action.READ, 'all')) {
+        return true;
+      }
+      if (mod.code === 'DASHBOARD') {
+        return true;
+      }
+      const subject = this.moduleSubjectMap[mod.code] || mod.code;
+      return (
+        ability.can(Action.READ, subject as any) ||
+        ability.can(Action.MANAGE, subject as any) ||
+        ability.can(Action.READ, mod.code as any)
+      );
+    });
   }
 
   async findAll(): Promise<ModuleEntity[]> {
