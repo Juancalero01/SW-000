@@ -14,6 +14,7 @@ out-tsc/
 */out-tsc/
 .angular/cache/
 */.angular/cache/
+*.tsbuildinfo
 
 # Environment files
 .env
