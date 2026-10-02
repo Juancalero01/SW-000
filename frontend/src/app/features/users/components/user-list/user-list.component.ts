@@ -1,11 +1,13 @@
 import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { UiButtonComponent } from '../../../../shared/components/ui-button/ui-button.component';
-import { UiDataTableComponent } from '../../../../shared/components/ui-data-table/ui-data-table.component';
-import { UiConfirmDialogComponent } from '../../../../shared/components/ui-confirm-dialog/ui-confirm-dialog.component';
+import { TableModule } from 'primeng/table';
+import { ButtonModule } from 'primeng/button';
+import { TagModule } from 'primeng/tag';
+import { AvatarModule } from 'primeng/avatar';
+import { DialogModule } from 'primeng/dialog';
+import { SelectModule } from 'primeng/select';
 import { UiPageHeaderComponent } from '../../../../shared/components/ui-page-header/ui-page-header.component';
-import { UiBadgeComponent } from '../../../../shared/components/ui-badge/ui-badge.component';
 import { UserModalComponent } from '../user-modal/user-modal.component';
 import { UsersApiService, CreateUserPayload, UpdateUserPayload } from '../../services/users-api.service';
 import { NotificationService } from '../../../../shared/services/notification.service';
@@ -19,207 +21,294 @@ import { Role, User } from '../../../../core/models/user.model';
   imports: [
     CommonModule,
     FormsModule,
-    UiButtonComponent,
-    UiDataTableComponent,
-    UiConfirmDialogComponent,
+    TableModule,
+    ButtonModule,
+    TagModule,
+    AvatarModule,
+    DialogModule,
+    SelectModule,
     UiPageHeaderComponent,
-    UiBadgeComponent,
     UserModalComponent,
+  ],
+  styles: [
+    `
+      :host ::ng-deep .p-datatable-header {
+        background: transparent;
+        border: none;
+        padding: 0;
+      }
+
+      :host ::ng-deep .p-datatable-thead > tr > th {
+        padding: 1rem 1.25rem !important;
+        background-color: #fafafa !important;
+        color: #52525b !important;
+        font-size: 0.75rem !important;
+        font-weight: 600 !important;
+        text-transform: uppercase !important;
+        letter-spacing: 0.05em !important;
+        border-bottom: 1px solid #e4e4e7 !important;
+        border-top: none !important;
+        border-left: none !important;
+        border-right: none !important;
+        white-space: nowrap;
+      }
+
+      :host ::ng-deep .p-datatable-tbody > tr > td {
+        padding: 1.125rem 1.25rem !important;
+        vertical-align: middle !important;
+        border-bottom: 1px solid #f4f4f5 !important;
+        border-top: none !important;
+        border-left: none !important;
+        border-right: none !important;
+        background-color: #ffffff;
+      }
+
+      :host ::ng-deep .p-datatable-tbody > tr:hover > td {
+        background-color: #fafafa !important;
+      }
+
+      :host ::ng-deep .p-datatable-tbody > tr:last-child > td {
+        border-bottom: none !important;
+      }
+
+      :host ::ng-deep .p-paginator {
+        padding: 0.875rem 1.5rem !important;
+        border-top: 1px solid #e4e4e7 !important;
+        background-color: #ffffff !important;
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 0.5rem;
+      }
+
+      :host ::ng-deep .p-paginator .p-paginator-current {
+        font-size: 0.8125rem;
+        color: #71717a;
+        margin-right: auto;
+      }
+
+      :host ::ng-deep .p-column-filter-menu-button {
+        width: 1.75rem;
+        height: 1.75rem;
+        border-radius: 0.375rem;
+      }
+    `,
   ],
   template: `
     <div class="space-y-8 sm:space-y-10">
-      <!-- Standardized Reusable Page Header with Integrated Popover Filters -->
+      <!-- Standardized Reusable Page Header -->
       <app-ui-page-header
-        #pageHeader
         title="Gestión de Usuarios"
         subtitle="Administra los usuarios de la plataforma, asigna roles y gestiona la aprobación de registros."
         createButtonText="Nuevo Usuario"
         [canCreate]="canCreateUser()"
-        [activeFilterCount]="activeFilterCount()"
-        (filterClicked)="onOpenFilterModal()"
+        [showFilterButton]="false"
         (createClicked)="onOpenCreateModal()"
       >
-        <!-- Inline Filter Popover Controls (No Backdrop Blur) -->
-        <div filter-content class="space-y-4">
-          <!-- Text Search Filter -->
-          <div class="flex flex-col gap-2 w-full">
-            <label class="text-sm font-medium text-zinc-800 tracking-wide">Buscar por Nombre o Email</label>
-            <input
-              type="text"
-              [(ngModel)]="filterSearchTemp"
-              placeholder="Ej: Juan Perez, admin@empresa.com..."
-              class="w-full bg-white text-zinc-900 border border-zinc-300 rounded-lg placeholder-zinc-400 transition-all duration-150 focus:outline-hidden focus:ring-2 focus:ring-zinc-900 focus:border-zinc-900 px-4 py-2.5 text-sm min-h-[44px] font-normal"
-            />
-          </div>
-
-          <!-- Role Filter Select -->
-          <div class="flex flex-col gap-2 w-full">
-            <label class="text-sm font-medium text-zinc-800 tracking-wide">Filtrar por Rol</label>
-            <div class="relative flex items-center w-full">
-              <select
-                [(ngModel)]="filterRoleTemp"
-                class="w-full bg-white text-zinc-900 border border-zinc-300 rounded-lg transition-all duration-150 appearance-none focus:outline-hidden focus:ring-2 focus:ring-zinc-900 focus:border-zinc-900 px-4 py-2.5 text-sm min-h-[44px] pr-10 font-normal"
-              >
-                <option value="">Todos los Roles</option>
-                @for (role of availableRoles(); track role.id) {
-                  <option [value]="role.name">{{ role.name }}</option>
-                }
-              </select>
-              <div class="absolute right-3.5 pointer-events-none text-zinc-400">
-                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
-                </svg>
-              </div>
-            </div>
-          </div>
-
-          <!-- Status Filter Select -->
-          <div class="flex flex-col gap-2 w-full">
-            <label class="text-sm font-medium text-zinc-800 tracking-wide">Filtrar por Estado de Cuenta</label>
-            <div class="relative flex items-center w-full">
-              <select
-                [(ngModel)]="filterStatusTemp"
-                class="w-full bg-white text-zinc-900 border border-zinc-300 rounded-lg transition-all duration-150 appearance-none focus:outline-hidden focus:ring-2 focus:ring-zinc-900 focus:border-zinc-900 px-4 py-2.5 text-sm min-h-[44px] pr-10 font-normal"
-              >
-                <option value="ALL">Todos los Estados</option>
-                <option value="ACTIVE">Solo Usuarios Activos</option>
-                <option value="INACTIVE">Solo Usuarios Inactivos</option>
-              </select>
-              <div class="absolute right-3.5 pointer-events-none text-zinc-400">
-                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
-                </svg>
-              </div>
-            </div>
-          </div>
-
-          <!-- Approval Status Filter Select -->
-          <div class="flex flex-col gap-2 w-full">
-            <label class="text-sm font-medium text-zinc-800 tracking-wide">Estado de Aprobación de Registro</label>
-            <div class="relative flex items-center w-full">
-              <select
-                [(ngModel)]="filterApprovalTemp"
-                class="w-full bg-white text-zinc-900 border border-zinc-300 rounded-lg transition-all duration-150 appearance-none focus:outline-hidden focus:ring-2 focus:ring-zinc-900 focus:border-zinc-900 px-4 py-2.5 text-sm min-h-[44px] pr-10 font-normal"
-              >
-                <option value="ALL">Todas las Solicitudes</option>
-                <option value="APPROVED">Solo Aprobados</option>
-                <option value="PENDING">Solo Pendientes de Aprobación</option>
-                <option value="REJECTED">Solo Rechazados</option>
-              </select>
-              <div class="absolute right-3.5 pointer-events-none text-zinc-400">
-                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
-                </svg>
-              </div>
-            </div>
-          </div>
-
-          <!-- Popover Action Footer Button -->
-          <div class="pt-3 border-t border-zinc-100 w-full">
-            <app-ui-button
-              type="button"
-              variant="primary"
-              size="md"
-              [fullWidth]="true"
-              (clicked)="onApplyModalFilters(pageHeader)"
-            >
-              Aplicar Filtros
-            </app-ui-button>
-          </div>
-        </div>
       </app-ui-page-header>
 
-      <!-- Active Filters Tag Pills (Shown when filters are active) -->
-      @if (activeFilterCount() > 0) {
-        <div class="flex flex-wrap items-center gap-2 bg-zinc-50 p-3 rounded-lg border border-zinc-200/80 text-xs">
-          <span class="text-zinc-500 font-medium mr-1">Filtros activos:</span>
+      <!-- Main Data Table Container (PrimeNG Table) -->
+      <div class="bg-white border border-zinc-200/80 rounded-xl overflow-hidden shadow-2xs">
+        <p-table
+          #dt
+          [value]="users()"
+          [loading]="isLoading()"
+          [lazy]="true"
+          filterDisplay="menu"
+          (onPage)="onPrimePageChange($event)"
+          (onFilter)="onTableFilter($event)"
+          [paginator]="true"
+          [rows]="limit()"
+          [totalRecords]="total()"
+          [first]="(page() - 1) * limit()"
+          [rowsPerPageOptions]="[5, 10, 20, 50]"
+          [showCurrentPageReport]="true"
+          paginatorDropdownAppendTo="body"
+          currentPageReportTemplate="Mostrando {first} a {last} de {totalRecords} usuarios"
+        >
+          <!-- Table Caption: Buscador positioned in the table header -->
+          <ng-template #caption>
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 bg-white border-b border-zinc-200/80">
+              <!-- Search Bar -->
+              <div class="relative flex items-center w-full sm:w-80">
+                <div class="absolute left-3.5 pointer-events-none text-zinc-400 flex items-center">
+                  <i class="pi pi-search text-sm"></i>
+                </div>
+                <input
+                  type="text"
+                  [ngModel]="searchQueryApplied()"
+                  (ngModelChange)="onSearchInput($event)"
+                  placeholder="Buscar por nombre o email..."
+                  class="w-full pl-9 pr-8 py-2 text-sm bg-white text-zinc-900 border border-zinc-300 rounded-lg placeholder-zinc-400 focus:outline-hidden focus:ring-2 focus:ring-zinc-900 focus:border-zinc-900 font-normal transition-all"
+                />
+                @if (searchQueryApplied()) {
+                  <button
+                    type="button"
+                    (click)="removeSearchFilter()"
+                    class="absolute right-2.5 text-zinc-400 hover:text-zinc-700 cursor-pointer p-1"
+                    title="Limpiar búsqueda"
+                  >
+                    <i class="pi pi-times text-xs"></i>
+                  </button>
+                }
+              </div>
 
-          @if (searchQueryApplied()) {
-            <span class="inline-flex items-center gap-1.5 px-2.5 py-1 bg-white border border-zinc-200 rounded-md font-medium text-zinc-800 shadow-2xs">
-              Búsqueda: "{{ searchQueryApplied() }}"
-              <button type="button" (click)="removeSearchFilter()" class="text-zinc-400 hover:text-zinc-700">
-                &times;
-              </button>
-            </span>
-          }
+              <!-- Filter Reset / Total Count -->
+              <div class="flex items-center gap-3 shrink-0">
+                @if (activeFilterCount() > 0) {
+                  <p-button
+                    label="Limpiar Filtros"
+                    icon="pi pi-filter-slash"
+                    severity="secondary"
+                    variant="outlined"
+                    size="small"
+                    (onClick)="onClearAllFilters(dt)"
+                  />
+                }
+                <span class="text-xs text-zinc-500 font-medium whitespace-nowrap">
+                  Total: {{ total() }} {{ total() === 1 ? 'usuario' : 'usuarios' }}
+                </span>
+              </div>
+            </div>
+          </ng-template>
 
-          @if (selectedRoleFilterApplied()) {
-            <span class="inline-flex items-center gap-1.5 px-2.5 py-1 bg-white border border-zinc-200 rounded-md font-medium text-zinc-800 shadow-2xs">
-              Rol: {{ selectedRoleFilterApplied() }}
-              <button type="button" (click)="removeRoleFilter()" class="text-zinc-400 hover:text-zinc-700">
-                &times;
-              </button>
-            </span>
-          }
+          <!-- Table Header with Display Menu Filters -->
+          <ng-template #header>
+            <tr class="border-b border-zinc-200/80 bg-zinc-50/75">
+              <!-- Usuario Column (Search is handled by header caption input) -->
+              <th class="px-4 py-3 text-xs font-semibold text-zinc-600 tracking-wider text-left">
+                Usuario
+              </th>
 
-          @if (selectedStatusFilterApplied() !== 'ALL') {
-            <span class="inline-flex items-center gap-1.5 px-2.5 py-1 bg-white border border-zinc-200 rounded-md font-medium text-zinc-800 shadow-2xs">
-              Estado: {{ selectedStatusFilterApplied() === 'ACTIVE' ? 'Activo' : 'Inactivo' }}
-              <button type="button" (click)="removeStatusFilter()" class="text-zinc-400 hover:text-zinc-700">
-                &times;
-              </button>
-            </span>
-          }
+              <!-- Contacto Column -->
+              <th class="px-4 py-3 text-xs font-semibold text-zinc-600 tracking-wider text-left">
+                Contacto
+              </th>
 
-          @if (selectedApprovalFilterApplied() !== 'ALL') {
-            <span class="inline-flex items-center gap-1.5 px-2.5 py-1 bg-white border border-zinc-200 rounded-md font-medium text-zinc-800 shadow-2xs">
-              Aprobación: {{ getApprovalLabel(selectedApprovalFilterApplied()) }}
-              <button type="button" (click)="removeApprovalFilter()" class="text-zinc-400 hover:text-zinc-700">
-                &times;
-              </button>
-            </span>
-          }
+              <!-- Roles Column -->
+              <th class="px-4 py-3 text-xs font-semibold text-zinc-600 tracking-wider text-left">
+                <div class="flex items-center justify-between gap-2">
+                  <span>Roles</span>
+                  <p-columnFilter
+                    field="role"
+                    matchMode="equals"
+                    display="menu"
+                    [showMatchModes]="false"
+                    [showOperator]="false"
+                    [showAddButton]="false"
+                    
+                  >
+                    <ng-template #filter let-value let-filter="filterCallback">
+                      <div class="p-1 min-w-[200px]">
+                        <label class="block text-xs font-semibold text-zinc-700 mb-2">Filtrar por Rol</label>
+                        <p-select
+                          [ngModel]="selectedRoleFilterApplied()"
+                          (ngModelChange)="onRoleSelectFilter($event, filter)"
+                          [options]="roleFilterOptions()"
+                          optionLabel="label"
+                          optionValue="value"
+                          placeholder="Todos los roles"
+                          [showClear]="true"
+                          size="small"
+                          class="w-full text-xs"
+                        />
+                      </div>
+                    </ng-template>
+                  </p-columnFilter>
+                </div>
+              </th>
 
-          <button
-            type="button"
-            (click)="onClearAllFilters()"
-            class="text-xs font-semibold text-zinc-600 hover:text-zinc-900 underline ml-2 cursor-pointer"
-          >
-            Limpiar todos
-          </button>
-        </div>
-      }
+              <!-- Aprobación Column -->
+              <th class="px-4 py-3 text-xs font-semibold text-zinc-600 tracking-wider text-left">
+                <div class="flex items-center justify-between gap-2">
+                  <span>Aprobación</span>
+                  <p-columnFilter
+                    field="approvalStatus"
+                    matchMode="equals"
+                    display="menu"
+                    [showMatchModes]="false"
+                    [showOperator]="false"
+                    [showAddButton]="false"
+                  >
+                    <ng-template #filter let-value let-filter="filterCallback">
+                      <div class="p-1 min-w-[200px]">
+                        <label class="block text-xs font-semibold text-zinc-700 mb-2">Estado de Aprobación</label>
+                        <p-select
+                          [ngModel]="selectedApprovalFilterApplied()"
+                          (ngModelChange)="onApprovalSelectFilter($event, filter)"
+                          [options]="approvalFilterOptions"
+                          optionLabel="label"
+                          optionValue="value"
+                          placeholder="Todas las solicitudes"
+                          size="small"
+                          class="w-full text-xs"
+                        />
+                      </div>
+                    </ng-template>
+                  </p-columnFilter>
+                </div>
+              </th>
 
-      <!-- Main Data Table Container -->
-      <app-ui-data-table
-        [loading]="isLoading()"
-        [page]="page()"
-        [pageSize]="limit()"
-        [totalPages]="lastPage()"
-        [totalItems]="total()"
-        (pageChange)="onPageChange($event)"
-        (pageSizeChange)="onPageSizeChange($event)"
-      >
-        <ng-container table-headers>
-          <th class="px-4 py-3 text-xs font-semibold text-zinc-600">Usuario</th>
-          <th class="px-4 py-3 text-xs font-semibold text-zinc-600">Contacto</th>
-          <th class="px-4 py-3 text-xs font-semibold text-zinc-600">Roles</th>
-          <th class="px-4 py-3 text-xs font-semibold text-zinc-600">Aprobación</th>
-          <th class="px-4 py-3 text-xs font-semibold text-zinc-600">Estado</th>
-          <th class="px-4 py-3 text-xs font-semibold text-zinc-600">Registro</th>
-          <th class="px-4 py-3 text-xs font-semibold text-zinc-600 text-center">Acciones</th>
-        </ng-container>
+              <!-- Estado Column -->
+              <th class="px-4 py-3 text-xs font-semibold text-zinc-600 tracking-wider text-left">
+                <div class="flex items-center justify-between gap-2">
+                  <span>Estado</span>
+                  <p-columnFilter
+                    field="isActive"
+                    matchMode="equals"
+                    display="menu"
+                    [showMatchModes]="false"
+                    [showOperator]="false"
+                    [showAddButton]="false"
+                  >
+                    <ng-template #filter let-value let-filter="filterCallback">
+                      <div class="p-1 min-w-[200px]">
+                        <label class="block text-xs font-semibold text-zinc-700 mb-2">Estado de Cuenta</label>
+                        <p-select
+                          [ngModel]="selectedStatusFilterApplied()"
+                          (ngModelChange)="onStatusSelectFilter($event, filter)"
+                          [options]="statusFilterOptions"
+                          optionLabel="label"
+                          optionValue="value"
+                          placeholder="Todos los estados"
+                          size="small"
+                          class="w-full text-xs"
+                        />
+                      </div>
+                    </ng-template>
+                  </p-columnFilter>
+                </div>
+              </th>
 
-        <ng-container table-rows>
-          @for (row of filteredUsers(); track row.id) {
+              <!-- Registro Column -->
+              <th class="px-4 py-3 text-xs font-semibold text-zinc-600 tracking-wider text-left">
+                Registro
+              </th>
+
+              <!-- Acciones Column -->
+              <th class="px-4 py-3 text-xs font-semibold text-zinc-600 tracking-wider text-center">
+                Acciones
+              </th>
+            </tr>
+          </ng-template>
+
+          <ng-template #body let-row>
             <tr class="hover:bg-zinc-50/80 transition-colors border-b border-zinc-100 last:border-0">
               <!-- User Profile Column -->
               <td class="px-4 py-3">
                 <div class="flex items-center gap-3">
-                  <div class="w-8 h-8 rounded-full bg-zinc-900 text-white font-bold flex items-center justify-center text-xs shrink-0 shadow-xs">
-                    {{ getUserInitials(row.fullName || row.email) }}
-                  </div>
+                  <p-avatar
+                    [label]="getUserInitials(row.fullName || row.email)"
+                    shape="square"
+                    class="bg-zinc-900 text-white font-bold text-xs shrink-0 shadow-2xs"
+                  />
                   <div class="flex flex-col min-w-0">
                     <div class="flex items-center gap-1.5">
                       <span class="text-xs font-semibold text-zinc-900 truncate">
                         {{ row.fullName || 'Sin Nombre' }}
                       </span>
                       @if (row.isEmailVerified) {
-                        <span class="inline-flex items-center text-emerald-600" title="Correo Electrónico Verificado">
-                          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
-                          </svg>
-                        </span>
+                        <i class="pi pi-verified text-emerald-600 text-xs" title="Correo Electrónico Verificado"></i>
                       }
                     </div>
                     <span class="text-[11px] text-zinc-500 truncate">
@@ -240,14 +329,13 @@ import { Role, User } from '../../../../core/models/user.model';
               <td class="px-4 py-3">
                 <div class="flex flex-wrap gap-1">
                   @for (r of row.roles || []; track r.id || r.name) {
-                    <app-ui-badge
-                      [variant]="r.name === 'ADMIN' || r.name === 'SUPERADMIN' ? 'dark' : 'default'"
-                      [uppercase]="true"
-                    >
-                      {{ r.name }}
-                    </app-ui-badge>
+                    <p-tag
+                      [value]="r.name"
+                      [severity]="r.name === 'ADMIN' || r.name === 'SUPERADMIN' ? 'contrast' : 'secondary'"
+                      class="text-xs font-medium tracking-wider"
+                    />
                   } @empty {
-                    <span class="text-[11px] text-zinc-400 italic">Sin Rol</span>
+                    <span class="text-xs text-zinc-400 italic">Sin Rol</span>
                   }
                 </div>
               </td>
@@ -255,30 +343,20 @@ import { Role, User } from '../../../../core/models/user.model';
               <!-- Approval Status Column -->
               <td class="px-4 py-3">
                 @if (row.approvalStatus === 'PENDING') {
-                  <app-ui-badge variant="warning" [dot]="true">
-                    Pendiente
-                  </app-ui-badge>
+                  <p-tag severity="warn" value="Pendiente" class="text-xs font-medium" />
                 } @else if (row.approvalStatus === 'REJECTED') {
-                  <app-ui-badge variant="danger" [dot]="true">
-                    Rechazado
-                  </app-ui-badge>
+                  <p-tag severity="danger" value="Rechazado" class="text-xs font-medium" />
                 } @else {
-                  <app-ui-badge variant="success" [dot]="true">
-                    Aprobado
-                  </app-ui-badge>
+                  <p-tag severity="success" value="Aprobado" class="text-xs font-medium" />
                 }
               </td>
 
               <!-- Active Status Column -->
               <td class="px-4 py-3">
                 @if (row.isActive) {
-                  <app-ui-badge variant="success" [dot]="true">
-                    Activo
-                  </app-ui-badge>
+                  <p-tag severity="success" value="Activo" class="text-xs font-medium" />
                 } @else {
-                  <app-ui-badge variant="secondary" [dot]="true">
-                    Inactivo
-                  </app-ui-badge>
+                  <p-tag severity="secondary" value="Inactivo" class="text-xs font-medium" />
                 }
               </td>
 
@@ -292,23 +370,30 @@ import { Role, User } from '../../../../core/models/user.model';
               <!-- Actions Column -->
               <td class="px-4 py-3 text-center">
                 <div class="flex items-center justify-center">
-                  <button
-                    type="button"
-                    (click)="onOpenEditModal(row)"
-                    class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-zinc-700 bg-zinc-100 hover:bg-zinc-200/80 rounded-lg transition-colors border border-zinc-200/80 shadow-2xs cursor-pointer group"
+                  <p-button
+                    label="Abrir"
+                    icon="pi pi-external-link"
+                    iconPos="right"
+                    size="small"
+                    severity="secondary"
+                    variant="outlined"
+                    (onClick)="onOpenEditModal(row)"
                     title="Abrir detalles de usuario"
-                  >
-                    <svg class="w-3.5 h-3.5 text-zinc-500 group-hover:text-zinc-900 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12H3m0 0l4-4m-4 4l4 4m14-9a2 2 0 012 2v10a2 2 0 01-2 2H9a2 2 0 01-2-2v-3"/>
-                    </svg>
-                    <span>Abrir</span>
-                  </button>
+                  />
                 </div>
               </td>
             </tr>
-          }
-        </ng-container>
-      </app-ui-data-table>
+          </ng-template>
+
+          <ng-template #emptymessage>
+            <tr>
+              <td colspan="7" class="text-center py-12 text-zinc-500 text-sm">
+                No se encontraron usuarios registrados con los criterios seleccionados.
+              </td>
+            </tr>
+          </ng-template>
+        </p-table>
+      </div>
 
       <!-- Create / Edit User Modal (Slide-Over Drawer) -->
       <app-user-modal
@@ -324,16 +409,36 @@ import { Role, User } from '../../../../core/models/user.model';
         (rejectUser)="onRejectUserFromModal($event)"
       ></app-user-modal>
 
-      <!-- Delete Confirmation Dialog -->
-      <app-ui-confirm-dialog
-        [isOpen]="isConfirmOpen()"
-        title="Eliminar Usuario"
-        [message]="'¿Estás seguro de que deseas eliminar al usuario ' + (userToDelete()?.fullName || userToDelete()?.email) + '? Se realizará una eliminación lógica del sistema.'"
-        confirmText="Eliminar Usuario"
-        [isDanger]="false"
-        (confirmed)="onExecuteDelete()"
-        (cancelled)="isConfirmOpen.set(false)"
-      ></app-ui-confirm-dialog>
+      <!-- Delete Confirmation Dialog (PrimeNG Dialog) -->
+      <p-dialog
+        header="Eliminar Usuario"
+        [visible]="isConfirmOpen()"
+        (visibleChange)="isConfirmOpen.set($event)"
+        [modal]="true"
+        [closable]="true"
+        [draggable]="false"
+        [resizable]="false"
+        [style]="{ width: '90vw', maxWidth: '440px' }"
+      >
+        <p class="text-sm text-zinc-600 leading-relaxed py-2">
+          ¿Estás seguro de que deseas eliminar al usuario <strong>{{ userToDelete()?.fullName || userToDelete()?.email }}</strong>? Se realizará una eliminación lógica del sistema.
+        </p>
+        <ng-template #footer>
+          <div class="flex items-center justify-end gap-2 pt-2">
+            <p-button
+              label="Cancelar"
+              severity="secondary"
+              variant="outlined"
+              (onClick)="isConfirmOpen.set(false)"
+            />
+            <p-button
+              label="Eliminar Usuario"
+              severity="danger"
+              (onClick)="onExecuteDelete()"
+            />
+          </div>
+        </ng-template>
+      </p-dialog>
     </div>
   `,
 })
@@ -348,7 +453,6 @@ export class UserListComponent implements OnInit {
   readonly total = signal<number>(0);
   readonly page = signal<number>(1);
   readonly limit = signal<number>(10);
-  readonly lastPage = signal<number>(1);
   readonly isLoading = signal<boolean>(false);
   readonly isSaving = signal<boolean>(false);
 
@@ -357,12 +461,6 @@ export class UserListComponent implements OnInit {
   readonly selectedRoleFilterApplied = signal<string>('');
   readonly selectedStatusFilterApplied = signal<'ALL' | 'ACTIVE' | 'INACTIVE'>('ALL');
   readonly selectedApprovalFilterApplied = signal<'ALL' | 'APPROVED' | 'PENDING' | 'REJECTED'>('ALL');
-
-  // Filter Popover temp values
-  filterSearchTemp = '';
-  filterRoleTemp = '';
-  filterStatusTemp: 'ALL' | 'ACTIVE' | 'INACTIVE' = 'ALL';
-  filterApprovalTemp: 'ALL' | 'APPROVED' | 'PENDING' | 'REJECTED' = 'ALL';
 
   // Create / Edit modal
   readonly isModalOpen = signal<boolean>(false);
@@ -373,8 +471,6 @@ export class UserListComponent implements OnInit {
   readonly userToDelete = signal<User | null>(null);
 
   readonly canCreateUser = computed(() => this.abilityService.can('create', 'User'));
-  readonly canUpdateUser = computed(() => this.abilityService.can('update', 'User'));
-  readonly canDeleteUser = computed(() => this.abilityService.can('delete', 'User'));
 
   readonly activeFilterCount = computed(() => {
     let count = 0;
@@ -385,9 +481,25 @@ export class UserListComponent implements OnInit {
     return count;
   });
 
-  readonly filteredUsers = computed(() => {
-    return this.users();
-  });
+  readonly roleFilterOptions = computed(() => [
+    { label: 'Todos los Roles', value: '' },
+    ...this.availableRoles().map((r) => ({ label: r.name, value: r.name })),
+  ]);
+
+  readonly approvalFilterOptions = [
+    { label: 'Todas las Solicitudes', value: 'ALL' },
+    { label: 'Aprobados', value: 'APPROVED' },
+    { label: 'Pendientes', value: 'PENDING' },
+    { label: 'Rechazados', value: 'REJECTED' },
+  ];
+
+  readonly statusFilterOptions = [
+    { label: 'Todos los Estados', value: 'ALL' },
+    { label: 'Activo', value: 'ACTIVE' },
+    { label: 'Inactivo', value: 'INACTIVE' },
+  ];
+
+
 
   ngOnInit(): void {
     this.loadUsers();
@@ -417,7 +529,6 @@ export class UserListComponent implements OnInit {
         next: (res) => {
           this.users.set(res.data || []);
           this.total.set(res.total || 0);
-          this.lastPage.set(res.lastPage || 1);
           this.isLoading.set(false);
         },
         error: (err) => {
@@ -437,37 +548,82 @@ export class UserListComponent implements OnInit {
     });
   }
 
-  onOpenFilterModal(): void {
-    this.filterSearchTemp = this.searchQueryApplied();
-    this.filterRoleTemp = this.selectedRoleFilterApplied();
-    this.filterStatusTemp = this.selectedStatusFilterApplied();
-    this.filterApprovalTemp = this.selectedApprovalFilterApplied();
-  }
-
-  onApplyModalFilters(pageHeader?: UiPageHeaderComponent): void {
-    this.searchQueryApplied.set(this.filterSearchTemp.trim());
-    this.selectedRoleFilterApplied.set(this.filterRoleTemp);
-    this.selectedStatusFilterApplied.set(this.filterStatusTemp);
-    this.selectedApprovalFilterApplied.set(this.filterApprovalTemp);
+  onSearchInput(query: string): void {
+    this.searchQueryApplied.set(query.trim());
     this.page.set(1);
-    pageHeader?.closeFilterPopover();
     this.loadUsers();
   }
 
-  onClearModalFilters(pageHeader?: UiPageHeaderComponent): void {
-    this.filterSearchTemp = '';
-    this.filterRoleTemp = '';
-    this.filterStatusTemp = 'ALL';
-    this.filterApprovalTemp = 'ALL';
-    this.onApplyModalFilters(pageHeader);
+  onRoleSelectFilter(val: string, filterCallback?: Function): void {
+    this.selectedRoleFilterApplied.set(val || '');
+    this.page.set(1);
+    if (filterCallback) {
+      filterCallback(val || null);
+    }
+    this.loadUsers();
   }
 
-  onClearAllFilters(): void {
+  onApprovalSelectFilter(val: 'ALL' | 'APPROVED' | 'PENDING' | 'REJECTED', filterCallback?: Function): void {
+    this.selectedApprovalFilterApplied.set(val || 'ALL');
+    this.page.set(1);
+    if (filterCallback) {
+      filterCallback(val !== 'ALL' ? val : null);
+    }
+    this.loadUsers();
+  }
+
+  onStatusSelectFilter(val: 'ALL' | 'ACTIVE' | 'INACTIVE', filterCallback?: Function): void {
+    this.selectedStatusFilterApplied.set(val || 'ALL');
+    this.page.set(1);
+    if (filterCallback) {
+      filterCallback(val !== 'ALL' ? val : null);
+    }
+    this.loadUsers();
+  }
+
+  onTableFilter(event: any): void {
+    const filters = event.filters || {};
+    const roleVal = this.extractFilterValue(filters['role']);
+    if (roleVal !== undefined) {
+      this.selectedRoleFilterApplied.set(roleVal || '');
+    }
+
+    const approvalVal = this.extractFilterValue(filters['approvalStatus']);
+    if (approvalVal !== undefined) {
+      this.selectedApprovalFilterApplied.set(approvalVal || 'ALL');
+    }
+
+    const statusVal = this.extractFilterValue(filters['isActive']);
+    if (statusVal !== undefined) {
+      this.selectedStatusFilterApplied.set(statusVal || 'ALL');
+    }
+
+    const nameVal = this.extractFilterValue(filters['fullName']);
+    if (nameVal !== undefined) {
+      this.searchQueryApplied.set(nameVal || '');
+    }
+
+    this.page.set(1);
+    this.loadUsers();
+  }
+
+  private extractFilterValue(filterMeta: any): any {
+    if (!filterMeta) return undefined;
+    if (Array.isArray(filterMeta)) {
+      return filterMeta[0]?.value;
+    }
+    return filterMeta.value;
+  }
+
+  onClearAllFilters(table?: any): void {
     this.searchQueryApplied.set('');
     this.selectedRoleFilterApplied.set('');
     this.selectedStatusFilterApplied.set('ALL');
     this.selectedApprovalFilterApplied.set('ALL');
     this.page.set(1);
+    if (table) {
+      table.clear();
+    }
     this.loadUsers();
   }
 
@@ -476,69 +632,16 @@ export class UserListComponent implements OnInit {
     this.loadUsers();
   }
 
-  removeRoleFilter(): void {
-    this.selectedRoleFilterApplied.set('');
-    this.loadUsers();
-  }
+  onPrimePageChange(event: any): void {
+    const newPage = event.page !== undefined ? event.page + 1 : Math.floor((event.first || 0) / (event.rows || 10)) + 1;
+    const newLimit = event.rows || this.limit();
 
-  removeStatusFilter(): void {
-    this.selectedStatusFilterApplied.set('ALL');
-    this.loadUsers();
-  }
-
-  removeApprovalFilter(): void {
-    this.selectedApprovalFilterApplied.set('ALL');
-    this.loadUsers();
-  }
-
-  getApprovalLabel(status: string): string {
-    if (status === 'APPROVED') return 'Aprobados';
-    if (status === 'PENDING') return 'Pendientes';
-    if (status === 'REJECTED') return 'Rechazados';
-    return 'Todos';
-  }
-
-  onApproveUser(user: User): void {
-    this.usersApiService.approveUser(user.id).subscribe({
-      next: () => {
-        this.notificationService.success(
-          'Solicitud Aprobada',
-          `Se aprobó la solicitud de ${user.fullName || user.email} y se le envió el correo de verificación.`,
-        );
-        this.loadUsers();
-      },
-      error: (err) => {
-        this.notificationService.error(
-          'Error al aprobar',
-          err.error?.message || 'No se pudo aprobar la solicitud.',
-        );
-      },
-    });
-  }
-
-  onRejectUser(user: User): void {
-    this.usersApiService.rejectUser(user.id).subscribe({
-      next: () => {
-        this.notificationService.success('Solicitud Rechazada', 'El registro de usuario ha sido denegado.');
-        this.loadUsers();
-      },
-      error: (err) => {
-        this.notificationService.error(
-          'Error al rechazar',
-          err.error?.message || 'No se pudo rechazar la solicitud.',
-        );
-      },
-    });
-  }
-
-  onPageChange(newPage: number): void {
-    this.page.set(newPage);
-    this.loadUsers();
-  }
-
-  onPageSizeChange(newSize: number): void {
-    this.limit.set(newSize);
-    this.page.set(1);
+    if (newLimit !== this.limit()) {
+      this.limit.set(newLimit);
+      this.page.set(1);
+    } else {
+      this.page.set(newPage);
+    }
     this.loadUsers();
   }
 

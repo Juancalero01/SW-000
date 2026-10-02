@@ -83,18 +83,17 @@ describe('UserListComponent', () => {
     expect(component.users().length).toBe(2);
   });
 
-  it('should pass role and status filters to API when modal filters are applied', () => {
-    component.filterRoleTemp = 'ADMIN';
-    component.filterStatusTemp = 'ACTIVE';
-    component.onApplyModalFilters();
+  it('should pass role and status filters to API when column filters are applied', () => {
+    component.onRoleSelectFilter('ADMIN');
+    component.onStatusSelectFilter('INACTIVE');
     fixture.detectChanges();
 
     expect(component.selectedRoleFilterApplied()).toBe('ADMIN');
-    expect(component.selectedStatusFilterApplied()).toBe('ACTIVE');
+    expect(component.selectedStatusFilterApplied()).toBe('INACTIVE');
     expect(mockUsersApiService.getUsers).toHaveBeenCalledWith(
       expect.objectContaining({
         roleName: 'ADMIN',
-        isActive: true,
+        isActive: false,
       }),
     );
   });
@@ -155,34 +154,32 @@ describe('UserListComponent', () => {
     expect(mockAuthService.getProfile).toHaveBeenCalled();
   });
 
-  it('should have modal-sized filter fields, remove Limpiar button, and have full-width Aplicar Filtros button', () => {
-    const filterButton = Array.from(fixture.nativeElement.querySelectorAll('button'))
-      .find((b: any) => b.textContent?.includes('Filtros')) as HTMLButtonElement;
-    filterButton?.click();
-    fixture.detectChanges();
-
+  it('should have table search input and column filters with display menu', () => {
     const compiled = fixture.nativeElement as HTMLElement;
-    const filterContainer = compiled.querySelector('[filter-content]');
-    expect(filterContainer).toBeTruthy();
+    const searchInput = compiled.querySelector('input[placeholder*="Buscar"]') as HTMLInputElement;
+    expect(searchInput).toBeTruthy();
 
-    const buttons = Array.from(filterContainer?.querySelectorAll('button') || []);
-    const hasLimpiarButton = buttons.some((b) => b.textContent?.trim() === 'Limpiar');
-    expect(hasLimpiarButton).toBe(false);
+    component.onSearchInput('Juan');
+    fixture.detectChanges();
+    expect(component.searchQueryApplied()).toBe('Juan');
+    expect(mockUsersApiService.getUsers).toHaveBeenCalledWith(
+      expect.objectContaining({
+        search: 'Juan',
+      }),
+    );
 
-    const applyButton = buttons.find((b) => b.textContent?.trim() === 'Aplicar Filtros');
-    expect(applyButton).toBeTruthy();
-    expect(applyButton?.classList.contains('w-full')).toBe(true);
+    component.onRoleSelectFilter('ADMIN');
+    fixture.detectChanges();
+    expect(component.selectedRoleFilterApplied()).toBe('ADMIN');
+    expect(mockUsersApiService.getUsers).toHaveBeenCalledWith(
+      expect.objectContaining({
+        roleName: 'ADMIN',
+      }),
+    );
 
-    const inputs = Array.from(filterContainer?.querySelectorAll('input') || []);
-    inputs.forEach((input) => {
-      expect(input.className).toContain('min-h-[44px]');
-      expect(input.className).toContain('text-sm');
-    });
-
-    const selects = Array.from(filterContainer?.querySelectorAll('select') || []);
-    selects.forEach((select) => {
-      expect(select.className).toContain('min-h-[44px]');
-      expect(select.className).toContain('text-sm');
-    });
+    component.onClearAllFilters();
+    fixture.detectChanges();
+    expect(component.searchQueryApplied()).toBe('');
+    expect(component.selectedRoleFilterApplied()).toBe('');
   });
 });
