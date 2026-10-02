@@ -272,6 +272,19 @@ describe('UsersService', () => {
         lastPage: 1,
       });
     });
+
+    it('debe transformar correctamente isActive=false en QueryUsersDto', async () => {
+      const { ValidationPipe } = await import('@nestjs/common');
+      const { QueryUsersDto } = await import('./dto/query-users.dto.js');
+      const pipe = new ValidationPipe({
+        whitelist: true,
+        forbidNonWhitelisted: true,
+        transform: true,
+        transformOptions: { enableImplicitConversion: true },
+      });
+      const res = await pipe.transform({ isActive: 'false' }, { type: 'query', metatype: QueryUsersDto });
+      expect(res.isActive).toBe(false);
+    });
   });
 
   describe('findById', () => {
