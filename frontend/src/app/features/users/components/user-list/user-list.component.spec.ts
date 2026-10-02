@@ -121,28 +121,6 @@ describe('UserListComponent', () => {
     expect(mockNotificationService.notifyDeleted).toHaveBeenCalled();
   });
 
-  it('should handle approveUser from modal and update selected user state', () => {
-    component.onApproveUserFromModal(2);
-    expect(mockUsersApiService.approveUser).toHaveBeenCalledWith(2);
-    expect(mockNotificationService.success).toHaveBeenCalledWith(
-      'Solicitud Aprobada',
-      expect.stringContaining('credenciales provisorias'),
-    );
-    expect(component.selectedUser()?.approvalStatus).toBe('APPROVED');
-    expect(component.selectedUser()?.isActive).toBe(true);
-  });
-
-  it('should handle rejectUser from modal with reason and update selected user state', () => {
-    component.onRejectUserFromModal({ id: 2, reason: 'No cumple perfil requerido' });
-    expect(mockUsersApiService.rejectUser).toHaveBeenCalledWith(2, 'No cumple perfil requerido');
-    expect(mockNotificationService.success).toHaveBeenCalledWith(
-      'Solicitud Rechazada',
-      expect.stringContaining('desactivada'),
-    );
-    expect(component.selectedUser()?.approvalStatus).toBe('REJECTED');
-    expect(component.selectedUser()?.isActive).toBe(false);
-  });
-
   it('should refresh auth profile if edited user is the current authenticated user', () => {
     component.onSaveUser({
       isEdit: true,

@@ -7,7 +7,6 @@ import { TagModule } from 'primeng/tag';
 import { AvatarModule } from 'primeng/avatar';
 import { DialogModule } from 'primeng/dialog';
 import { SelectModule } from 'primeng/select';
-import { UiPageHeaderComponent } from '../../../../shared/components/ui-page-header/ui-page-header.component';
 import { UserModalComponent } from '../user-modal/user-modal.component';
 import { UsersApiService, CreateUserPayload, UpdateUserPayload } from '../../services/users-api.service';
 import { NotificationService } from '../../../../shared/services/notification.service';
@@ -27,7 +26,6 @@ import { Role, User } from '../../../../core/models/user.model';
     AvatarModule,
     DialogModule,
     SelectModule,
-    UiPageHeaderComponent,
     UserModalComponent,
   ],
   styles: [
@@ -96,16 +94,28 @@ import { Role, User } from '../../../../core/models/user.model';
   ],
   template: `
     <div class="space-y-8 sm:space-y-10">
-      <!-- Standardized Reusable Page Header -->
-      <app-ui-page-header
-        title="Gestión de Usuarios"
-        subtitle="Administra los usuarios de la plataforma, asigna roles y gestiona la aprobación de registros."
-        createButtonText="Nuevo Usuario"
-        [canCreate]="canCreateUser()"
-        [showFilterButton]="false"
-        (createClicked)="onOpenCreateModal()"
-      >
-      </app-ui-page-header>
+      <!-- Standardized Page Header -->
+      <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 py-2 pb-2 sm:pb-3">
+        <div>
+          <h1 class="text-2xl sm:text-3xl font-bold text-zinc-900 tracking-tight">
+            Gestión de Usuarios
+          </h1>
+          <p class="text-xs sm:text-sm text-zinc-500 mt-1">
+            Administra los usuarios de la plataforma, asigna roles y gestiona el estado de las cuentas.
+          </p>
+        </div>
+
+        @if (canCreateUser()) {
+          <div class="flex items-center gap-2.5 shrink-0">
+            <p-button
+              label="Nuevo Usuario"
+              icon="pi pi-plus"
+              severity="contrast"
+              (onClick)="onOpenCreateModal()"
+            />
+          </div>
+        }
+      </div>
 
       <!-- Main Data Table Container (PrimeNG Table) -->
       <div class="bg-white border border-zinc-200/80 rounded-xl overflow-hidden shadow-2xs">
@@ -218,37 +228,6 @@ import { Role, User } from '../../../../core/models/user.model';
                 </div>
               </th>
 
-              <!-- Aprobación Column -->
-              <th class="px-4 py-3 text-xs font-semibold text-zinc-600 tracking-wider text-left">
-                <div class="flex items-center justify-between gap-2">
-                  <span>Aprobación</span>
-                  <p-columnFilter
-                    field="approvalStatus"
-                    matchMode="equals"
-                    display="menu"
-                    [showMatchModes]="false"
-                    [showOperator]="false"
-                    [showAddButton]="false"
-                  >
-                    <ng-template #filter let-value let-filter="filterCallback">
-                      <div class="p-1 min-w-[200px]">
-                        <label class="block text-xs font-semibold text-zinc-700 mb-2">Estado de Aprobación</label>
-                        <p-select
-                          [ngModel]="selectedApprovalFilterApplied()"
-                          (ngModelChange)="onApprovalSelectFilter($event, filter)"
-                          [options]="approvalFilterOptions"
-                          optionLabel="label"
-                          optionValue="value"
-                          placeholder="Todas las solicitudes"
-                          size="small"
-                          class="w-full text-xs"
-                        />
-                      </div>
-                    </ng-template>
-                  </p-columnFilter>
-                </div>
-              </th>
-
               <!-- Estado Column -->
               <th class="px-4 py-3 text-xs font-semibold text-zinc-600 tracking-wider text-left">
                 <div class="flex items-center justify-between gap-2">
@@ -340,21 +319,10 @@ import { Role, User } from '../../../../core/models/user.model';
                 </div>
               </td>
 
-              <!-- Approval Status Column -->
-              <td class="px-4 py-3">
-                @if (row.approvalStatus === 'PENDING') {
-                  <p-tag severity="warn" value="Pendiente" class="text-xs font-medium" />
-                } @else if (row.approvalStatus === 'REJECTED') {
-                  <p-tag severity="danger" value="Rechazado" class="text-xs font-medium" />
-                } @else {
-                  <p-tag severity="success" value="Aprobado" class="text-xs font-medium" />
-                }
-              </td>
-
               <!-- Active Status Column -->
               <td class="px-4 py-3">
                 @if (row.isActive) {
-                  <p-tag severity="success" value="Activo" class="text-xs font-medium" />
+                  <p-tag severity="contrast" value="Activo" class="text-xs font-medium" />
                 } @else {
                   <p-tag severity="secondary" value="Inactivo" class="text-xs font-medium" />
                 }
@@ -387,7 +355,7 @@ import { Role, User } from '../../../../core/models/user.model';
 
           <ng-template #emptymessage>
             <tr>
-              <td colspan="7" class="text-center py-12 text-zinc-500 text-sm">
+              <td colspan="6" class="text-center py-12 text-zinc-500 text-sm">
                 No se encontraron usuarios registrados con los criterios seleccionados.
               </td>
             </tr>
@@ -405,8 +373,6 @@ import { Role, User } from '../../../../core/models/user.model';
         (closeModal)="onCloseModal()"
         (saveUser)="onSaveUser($event)"
         (deleteUser)="onConfirmDelete($event)"
-        (approveUser)="onApproveUserFromModal($event)"
-        (rejectUser)="onRejectUserFromModal($event)"
       ></app-user-modal>
 
       <!-- Delete Confirmation Dialog (PrimeNG Dialog) -->
@@ -460,7 +426,6 @@ export class UserListComponent implements OnInit {
   readonly searchQueryApplied = signal<string>('');
   readonly selectedRoleFilterApplied = signal<string>('');
   readonly selectedStatusFilterApplied = signal<'ALL' | 'ACTIVE' | 'INACTIVE'>('ALL');
-  readonly selectedApprovalFilterApplied = signal<'ALL' | 'APPROVED' | 'PENDING' | 'REJECTED'>('ALL');
 
   // Create / Edit modal
   readonly isModalOpen = signal<boolean>(false);
@@ -477,7 +442,6 @@ export class UserListComponent implements OnInit {
     if (this.searchQueryApplied()) count++;
     if (this.selectedRoleFilterApplied()) count++;
     if (this.selectedStatusFilterApplied() !== 'ALL') count++;
-    if (this.selectedApprovalFilterApplied() !== 'ALL') count++;
     return count;
   });
 
@@ -486,20 +450,11 @@ export class UserListComponent implements OnInit {
     ...this.availableRoles().map((r) => ({ label: r.name, value: r.name })),
   ]);
 
-  readonly approvalFilterOptions = [
-    { label: 'Todas las Solicitudes', value: 'ALL' },
-    { label: 'Aprobados', value: 'APPROVED' },
-    { label: 'Pendientes', value: 'PENDING' },
-    { label: 'Rechazados', value: 'REJECTED' },
-  ];
-
   readonly statusFilterOptions = [
     { label: 'Todos los Estados', value: 'ALL' },
     { label: 'Activo', value: 'ACTIVE' },
     { label: 'Inactivo', value: 'INACTIVE' },
   ];
-
-
 
   ngOnInit(): void {
     this.loadUsers();
@@ -508,7 +463,6 @@ export class UserListComponent implements OnInit {
 
   loadUsers(): void {
     this.isLoading.set(true);
-    const approvalFilter = this.selectedApprovalFilterApplied();
     const roleFilter = this.selectedRoleFilterApplied();
     const statusFilter = this.selectedStatusFilterApplied();
 
@@ -521,7 +475,6 @@ export class UserListComponent implements OnInit {
         page: this.page(),
         limit: this.limit(),
         search: this.searchQueryApplied().trim() || undefined,
-        approvalStatus: approvalFilter !== 'ALL' ? approvalFilter : undefined,
         roleName: roleFilter || undefined,
         isActive: isActiveParam,
       })
@@ -563,15 +516,6 @@ export class UserListComponent implements OnInit {
     this.loadUsers();
   }
 
-  onApprovalSelectFilter(val: 'ALL' | 'APPROVED' | 'PENDING' | 'REJECTED', filterCallback?: Function): void {
-    this.selectedApprovalFilterApplied.set(val || 'ALL');
-    this.page.set(1);
-    if (filterCallback) {
-      filterCallback(val !== 'ALL' ? val : null);
-    }
-    this.loadUsers();
-  }
-
   onStatusSelectFilter(val: 'ALL' | 'ACTIVE' | 'INACTIVE', filterCallback?: Function): void {
     this.selectedStatusFilterApplied.set(val || 'ALL');
     this.page.set(1);
@@ -586,11 +530,6 @@ export class UserListComponent implements OnInit {
     const roleVal = this.extractFilterValue(filters['role']);
     if (roleVal !== undefined) {
       this.selectedRoleFilterApplied.set(roleVal || '');
-    }
-
-    const approvalVal = this.extractFilterValue(filters['approvalStatus']);
-    if (approvalVal !== undefined) {
-      this.selectedApprovalFilterApplied.set(approvalVal || 'ALL');
     }
 
     const statusVal = this.extractFilterValue(filters['isActive']);
@@ -619,7 +558,6 @@ export class UserListComponent implements OnInit {
     this.searchQueryApplied.set('');
     this.selectedRoleFilterApplied.set('');
     this.selectedStatusFilterApplied.set('ALL');
-    this.selectedApprovalFilterApplied.set('ALL');
     this.page.set(1);
     if (table) {
       table.clear();
@@ -733,50 +671,6 @@ export class UserListComponent implements OnInit {
         this.notificationService.error(
           'Error al eliminar',
           err.error?.message || 'No se pudo eliminar el usuario',
-        );
-      },
-    });
-  }
-
-  onApproveUserFromModal(userId: number): void {
-    this.isSaving.set(true);
-    this.usersApiService.approveUser(userId).subscribe({
-      next: (updatedUser) => {
-        this.isSaving.set(false);
-        this.notificationService.success(
-          'Solicitud Aprobada',
-          'Se aprobó la cuenta y se enviaron las credenciales provisorias al usuario por correo electrónico.',
-        );
-        this.selectedUser.set(updatedUser);
-        this.loadUsers();
-      },
-      error: (err) => {
-        this.isSaving.set(false);
-        this.notificationService.error(
-          'Error al aprobar solicitud',
-          err.error?.message || 'No se pudo aprobar la solicitud del usuario.',
-        );
-      },
-    });
-  }
-
-  onRejectUserFromModal(event: { id: number; reason: string }): void {
-    this.isSaving.set(true);
-    this.usersApiService.rejectUser(event.id, event.reason).subscribe({
-      next: (updatedUser) => {
-        this.isSaving.set(false);
-        this.notificationService.success(
-          'Solicitud Rechazada',
-          'El registro de usuario ha sido rechazado, la cuenta desactivada y se envió el motivo por correo.',
-        );
-        this.selectedUser.set(updatedUser);
-        this.loadUsers();
-      },
-      error: (err) => {
-        this.isSaving.set(false);
-        this.notificationService.error(
-          'Error al rechazar solicitud',
-          err.error?.message || 'No se pudo rechazar la solicitud del usuario.',
         );
       },
     });
