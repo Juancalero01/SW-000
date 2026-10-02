@@ -72,17 +72,13 @@ describe('SidebarComponent', () => {
     expect(mockAuthService.logout).toHaveBeenCalled();
   });
 
-  it('should emit closeSidebar when mobile backdrop is clicked', () => {
-    fixture.componentRef.setInput('isOpen', true);
-    fixture.detectChanges();
-
+  it('should emit closeSidebar when mobile drawer closes', () => {
     let emitted = false;
     component.closeSidebar.subscribe(() => {
       emitted = true;
     });
 
-    const backdrop = fixture.nativeElement.querySelector('div.fixed.inset-0');
-    backdrop.click();
+    component.onDrawerVisibleChange(false);
     expect(emitted).toBe(true);
   });
 });
